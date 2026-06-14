@@ -2302,10 +2302,14 @@ function Panel({ children, title }: { children: React.ReactNode; title: string }
   )
 }
 
-const TextInput = React.forwardRef<
-  HTMLInputElement,
-  React.InputHTMLAttributes<HTMLInputElement> & { label: string }
->(function TextInput({ label, ...props }, ref) {
+function TextInput({
+  label,
+  ref,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string
+  ref?: React.Ref<HTMLInputElement>
+}) {
   return (
     <div className="grid gap-1.5">
       <Label>{label}</Label>
@@ -2315,19 +2319,23 @@ const TextInput = React.forwardRef<
       />
     </div>
   )
-})
+}
 
-const CheckboxInput = React.forwardRef<
-  HTMLInputElement,
-  Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & { label: string }
->(function CheckboxInput({ label, ...props }, ref) {
+function CheckboxInput({
+  label,
+  ref,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  label: string
+  ref?: React.Ref<HTMLInputElement>
+}) {
   return (
     <Label className="flex items-center gap-2 text-sm">
       <input ref={ref} className="size-4 accent-current" type="checkbox" {...props} />
       <span>{label}</span>
     </Label>
   )
-})
+}
 
 function DetailsPanel({ node }: { node: ShelfNode | null }) {
   const queryClient = useQueryClient()
@@ -2902,13 +2910,7 @@ async function extractDroppedFiles(dataTransfer: DataTransfer) {
           | undefined
     )
     .filter((entry): entry is DroppedEntry => Boolean(entry))
-  const files: File[] = []
-
-  for (const entry of entries) {
-    files.push(...(await readDroppedEntry(entry, "")))
-  }
-
-  return files
+  return (await Promise.all(entries.map((entry) => readDroppedEntry(entry, "")))).flat()
 }
 
 async function readDroppedEntry(entry: DroppedEntry, parentPath: string): Promise<File[]> {
@@ -2926,15 +2928,20 @@ async function readDroppedEntry(entry: DroppedEntry, parentPath: string): Promis
 
   if (!entry.isDirectory) return []
   const reader = (entry as DroppedDirectoryEntry).createReader()
-  const files: File[] = []
-  while (true) {
-    const children = await new Promise<DroppedEntry[]>((resolve, reject) => {
-      reader.readEntries(resolve, reject)
-    })
-    if (children.length === 0) break
-    for (const child of children) {
-      files.push(...(await readDroppedEntry(child, relativePath)))
-    }
-  }
-  return files
+  const children = await readAllDirectoryEntries(reader)
+  return (
+    await Promise.all(
+      children.map((child) => readDroppedEntry(child, relativePath))
+    )
+  ).flat()
+}
+
+async function readAllDirectoryEntries(
+  reader: ReturnType<DroppedDirectoryEntry["createReader"]>
+): Promise<DroppedEntry[]> {
+  const children = await new Promise<DroppedEntry[]>((resolve, reject) => {
+    reader.readEntries(resolve, reject)
+  })
+  if (children.length === 0) return []
+  return [...children, ...(await readAllDirectoryEntries(reader))]
 }

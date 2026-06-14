@@ -129,24 +129,27 @@ async function uploadFile(task: UploadTask, update: (patch: Partial<UploadTask>)
     )
   } else {
     let uploadedBytes = 0
-    const completedParts: Array<{ partNumber: number; eTag: string }> = []
-    for (const part of session.upload.parts) {
-      const start = (part.partNumber - 1) * session.upload.partSizeBytes
-      const end = Math.min(start + session.upload.partSizeBytes, task.file.size)
-      const blob = task.file.slice(start, end)
-      const response = await putPartWithRetry(part.url, blob, task.abortController)
-      const eTag = response.headers.get("etag")
-      if (!eTag) throw new Error("S3 did not return a multipart ETag")
-      completedParts.push({ partNumber: part.partNumber, eTag })
-      uploadedBytes += blob.size
-      updateProgress(task.file.size, uploadedBytes, startedAt, update)
-    }
+    const completedParts = await Promise.all(
+      session.upload.parts.map(async (part) => {
+        const start = (part.partNumber - 1) * session.upload.partSizeBytes
+        const end = Math.min(start + session.upload.partSizeBytes, task.file.size)
+        const blob = task.file.slice(start, end)
+        const response = await putPartWithRetry(part.url, blob, task.abortController)
+        const eTag = response.headers.get("etag")
+        if (!eTag) throw new Error("S3 did not return a multipart ETag")
+        uploadedBytes += blob.size
+        updateProgress(task.file.size, uploadedBytes, startedAt, update)
+        return { partNumber: part.partNumber, eTag }
+      })
+    )
     await apiFetch(`/uploads/${session.uploadSessionId}/complete`, {
       method: "POST",
       body: JSON.stringify({
         mutationId: crypto.randomUUID(),
         uploadSessionId: session.uploadSessionId,
-        parts: completedParts,
+        parts: completedParts.toSorted(
+          (left, right) => left.partNumber - right.partNumber
+        ),
       }),
     })
     return
@@ -166,22 +169,32 @@ async function putPartWithRetry(
   blob: Blob,
   abortController: AbortController
 ) {
-  let lastError: unknown
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        method: "PUT",
-        body: blob,
-        signal: abortController.signal,
-      })
-      if (response.ok) return response
-      lastError = new Error(`Multipart part upload failed with HTTP ${response.status}`)
-    } catch (error) {
-      lastError = error
-      if (abortController.signal.aborted) throw error
+  return putPartAttempt(url, blob, abortController, 0)
+}
+
+async function putPartAttempt(
+  url: string,
+  blob: Blob,
+  abortController: AbortController,
+  attempt: number
+): Promise<Response> {
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      body: blob,
+      signal: abortController.signal,
+    })
+    if (response.ok) return response
+    if (attempt >= 2) {
+      throw new Error(`Multipart part upload failed with HTTP ${response.status}`)
+    }
+  } catch (error) {
+    if (abortController.signal.aborted || attempt >= 2) {
+      throw error
     }
   }
-  throw lastError instanceof Error ? lastError : new Error("Multipart part upload failed")
+
+  return putPartAttempt(url, blob, abortController, attempt + 1)
 }
 
 function updateProgress(
