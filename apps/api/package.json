@@ -1,0 +1,35 @@
+{
+  "name": "@shelf/api",
+  "version": "1.0.0-rc.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun build src/index.ts --target=bun --outdir=dist",
+    "configure-cors": "bun run scripts/configure-cors.ts",
+    "dev": "bun --watch src/index.ts",
+    "lint": "eslint src",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.5",
+    "@shelf/auth": "workspace:*",
+    "@shelf/config": "workspace:*",
+    "@shelf/db": "workspace:*",
+    "@shelf/jobs": "workspace:*",
+    "@shelf/logger": "workspace:*",
+    "@shelf/shared": "workspace:*",
+    "@shelf/storage": "workspace:*",
+    "@types/nodemailer": "^8.0.1",
+    "@types/yazl": "^3.3.1",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.11.3",
+    "ioredis": "^5.8.2",
+    "nodemailer": "^9.0.0",
+    "yazl": "^3.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "~6"
+  }
+}

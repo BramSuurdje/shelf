@@ -1,0 +1,50 @@
+services:
+  web:
+    image: ghcr.io/bramsuurdje/shelf-web:latest
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY_URL: http://api:8787
+      WEB_PORT: 5173
+    depends_on:
+      - api
+
+  api:
+    image: ghcr.io/bramsuurdje/shelf-api:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    image: ghcr.io/bramsuurdje/shelf-worker:latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shelf
+      POSTGRES_USER: shelf
+      POSTGRES_PASSWORD: shelf
+    volumes:
+      - postgres-data:/var/lib/postgresql
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:

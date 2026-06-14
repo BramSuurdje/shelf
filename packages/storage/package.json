@@ -1,0 +1,22 @@
+{
+  "name": "@shelf/storage",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.955.0",
+    "@aws-sdk/s3-request-presigner": "^3.955.0",
+    "@shelf/config": "workspace:*",
+    "@shelf/shared": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
+

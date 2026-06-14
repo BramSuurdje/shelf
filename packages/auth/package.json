@@ -1,0 +1,23 @@
+{
+  "name": "@shelf/auth",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/redis-storage": "^1.0.0",
+    "@shelf/config": "workspace:*",
+    "@shelf/db": "workspace:*",
+    "@shelf/jobs": "workspace:*",
+    "better-auth": "^1.4.5",
+    "ioredis": "^5.8.2"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
