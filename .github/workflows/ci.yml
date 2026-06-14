@@ -39,10 +39,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set image owner
+        run: echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           target: ${{ matrix.target }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/shelf-${{ matrix.target }}:latest
+          tags: ghcr.io/${{ env.IMAGE_OWNER }}/shelf-${{ matrix.target }}:latest
