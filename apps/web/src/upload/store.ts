@@ -128,11 +128,12 @@ async function uploadFile(task: UploadTask, update: (patch: Partial<UploadTask>)
       }
     )
   } else {
+    const upload = session.upload
     let uploadedBytes = 0
     const completedParts = await Promise.all(
-      session.upload.parts.map(async (part) => {
-        const start = (part.partNumber - 1) * session.upload.partSizeBytes
-        const end = Math.min(start + session.upload.partSizeBytes, task.file.size)
+      upload.parts.map(async (part) => {
+        const start = (part.partNumber - 1) * upload.partSizeBytes
+        const end = Math.min(start + upload.partSizeBytes, task.file.size)
         const blob = task.file.slice(start, end)
         const response = await putPartWithRetry(part.url, blob, task.abortController)
         const eTag = response.headers.get("etag")
