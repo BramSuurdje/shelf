@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import { toast } from "sonner"
+import { create } from "zustand"
 
 import { apiFetch, type UploadSessionResponse } from "@/api/client"
 
@@ -101,7 +101,10 @@ function settleUploadBatch(
   tracker.resolve()
 }
 
-async function uploadFile(task: UploadTask, update: (patch: Partial<UploadTask>) => void) {
+async function uploadFile(
+  task: UploadTask,
+  update: (patch: Partial<UploadTask>) => void
+) {
   const mimeType = task.file.type || "application/octet-stream"
   const session = await apiFetch<UploadSessionResponse>("/uploads", {
     method: "POST",
@@ -135,7 +138,11 @@ async function uploadFile(task: UploadTask, update: (patch: Partial<UploadTask>)
         const start = (part.partNumber - 1) * upload.partSizeBytes
         const end = Math.min(start + upload.partSizeBytes, task.file.size)
         const blob = task.file.slice(start, end)
-        const response = await putPartWithRetry(part.url, blob, task.abortController)
+        const response = await putPartWithRetry(
+          part.url,
+          blob,
+          task.abortController
+        )
         const eTag = response.headers.get("etag")
         if (!eTag) throw new Error("S3 did not return a multipart ETag")
         uploadedBytes += blob.size
@@ -187,7 +194,9 @@ async function putPartAttempt(
     })
     if (response.ok) return response
     if (attempt >= 2) {
-      throw new Error(`Multipart part upload failed with HTTP ${response.status}`)
+      throw new Error(
+        `Multipart part upload failed with HTTP ${response.status}`
+      )
     }
   } catch (error) {
     if (abortController.signal.aborted || attempt >= 2) {
@@ -239,7 +248,9 @@ function putWithProgress(
         )
       )
     )
-    request.addEventListener("abort", () => reject(new Error("Upload cancelled")))
+    request.addEventListener("abort", () =>
+      reject(new Error("Upload cancelled"))
+    )
     request.open("PUT", url)
     request.setRequestHeader("Content-Type", mimeType)
     request.send(file)
@@ -252,7 +263,10 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     get().addFileGroups([{ files, parentId }], options)
   },
   addFileGroups: (groups, options) => {
-    const totalFiles = groups.reduce((total, group) => total + group.files.length, 0)
+    const totalFiles = groups.reduce(
+      (total, group) => total + group.files.length,
+      0
+    )
     const batchId =
       options?.toastLabel && totalFiles > 0
         ? createUploadBatch(options.toastLabel, totalFiles)
@@ -319,9 +333,13 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   },
   startNext: () => {
     const state = get()
-    const activeCount = state.tasks.filter((task) => task.status === "uploading").length
+    const activeCount = state.tasks.filter(
+      (task) => task.status === "uploading"
+    ).length
     const slots = maxConcurrentUploads - activeCount
-    const nextTasks = state.tasks.filter((task) => task.status === "queued").slice(0, slots)
+    const nextTasks = state.tasks
+      .filter((task) => task.status === "queued")
+      .slice(0, slots)
 
     for (const task of nextTasks) {
       set((current) => ({
@@ -345,7 +363,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           loading: `Uploading ${fileName}`,
           success: `${fileName} uploaded`,
           error: (error) =>
-            error instanceof Error ? error.message : `Failed to upload ${fileName}`,
+            error instanceof Error
+              ? error.message
+              : `Failed to upload ${fileName}`,
         })
       }
 

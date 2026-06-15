@@ -1,7 +1,6 @@
+import { loadEnv } from "@shelf/config"
 import { drizzle } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
-
-import { loadEnv } from "@shelf/config"
 
 import * as schema from "./schema"
 
@@ -20,7 +19,9 @@ export async function dbHealthCheck() {
 }
 
 export async function withTransaction<T>(
-  callback: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
+  callback: (
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
+  ) => Promise<T>
 ) {
   return db.transaction(callback)
 }

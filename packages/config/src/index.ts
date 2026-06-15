@@ -23,9 +23,7 @@ export type ShelfEnv = z.infer<typeof envSchema>
 type EnvInput = Record<string, string | undefined>
 
 function defaultEnv(): EnvInput {
-  return (
-    (globalThis as { process?: { env?: EnvInput } }).process?.env ?? {}
-  )
+  return (globalThis as { process?: { env?: EnvInput } }).process?.env ?? {}
 }
 
 export function loadEnv(input: EnvInput = defaultEnv()): ShelfEnv {
@@ -66,7 +64,10 @@ function base64ToBytes(value: string) {
   return Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
 }
 
-export async function sealSecret(value: string, secret = loadEnv().ENCRYPTION_SECRET) {
+export async function sealSecret(
+  value: string,
+  secret = loadEnv().ENCRYPTION_SECRET
+) {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const key = await encryptionKey(secret)
   const encrypted = await crypto.subtle.encrypt(
@@ -77,7 +78,10 @@ export async function sealSecret(value: string, secret = loadEnv().ENCRYPTION_SE
   return `${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`
 }
 
-export async function openSecret(value: string, secret = loadEnv().ENCRYPTION_SECRET) {
+export async function openSecret(
+  value: string,
+  secret = loadEnv().ENCRYPTION_SECRET
+) {
   const [ivPart, encryptedPart] = value.split(".")
   if (!ivPart || !encryptedPart) throw new Error("Invalid sealed secret")
   const key = await encryptionKey(secret)

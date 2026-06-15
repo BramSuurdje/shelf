@@ -1,5 +1,6 @@
 import {
   AbortMultipartUploadCommand,
+  type CompletedPart,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
@@ -9,7 +10,6 @@ import {
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
-  type CompletedPart,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
@@ -160,7 +160,9 @@ export async function completeMultipartUpload(
       Key: input.objectKey,
       UploadId: input.uploadId,
       MultipartUpload: {
-        Parts: input.parts.sort((a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0)),
+        Parts: input.parts.sort(
+          (a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0)
+        ),
       },
     })
   )

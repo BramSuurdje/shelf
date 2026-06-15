@@ -1,7 +1,3 @@
-import { and, eq, lt, sql } from "drizzle-orm"
-import nodemailer from "nodemailer"
-import sharp from "sharp"
-
 import { openSecret } from "@shelf/config"
 import { db, loadS3SettingsFromDb } from "@shelf/db"
 import {
@@ -12,25 +8,33 @@ import {
   uploadSessions,
   user,
 } from "@shelf/db/schema"
+import { createWorker, maintenanceQueue } from "@shelf/jobs"
 import { logger } from "@shelf/logger"
 import {
   abortMultipartUpload,
-  createThumbnailObjectKey,
   createS3Client,
+  createThumbnailObjectKey,
   deleteObject,
   getObjectStream,
   putObjectBytes,
 } from "@shelf/storage"
-
-import { createWorker, maintenanceQueue } from "@shelf/jobs"
+import { and, eq, lt, sql } from "drizzle-orm"
+import nodemailer from "nodemailer"
+import sharp from "sharp"
 
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
-  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key))
+  const [row] = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
   return (row?.value as T | undefined) ?? fallback
 }
 
 async function readSecretSetting(key: string) {
-  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key))
+  const [row] = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
   if (typeof row?.value !== "string") return undefined
   return row.encrypted ? openSecret(row.value) : row.value
 }
@@ -134,8 +138,13 @@ const worker = createWorker(async (job) => {
     }
 
     case "trash.purgeExpired": {
-      const retentionDays = await readSetting("maintenance.trashRetentionDays", 30)
-      const retentionDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+      const retentionDays = await readSetting(
+        "maintenance.trashRetentionDays",
+        30
+      )
+      const retentionDate = new Date(
+        Date.now() - retentionDays * 24 * 60 * 60 * 1000
+      )
       const settings = await loadS3SettingsFromDb()
       const client = createS3Client(settings)
       const trashed = await db
@@ -149,7 +158,9 @@ const worker = createWorker(async (job) => {
           await deleteObject(client, settings, row.version.objectKey)
         }
       }
-      const purgedNodeIds = Array.from(new Set(trashed.map((row) => row.node.id)))
+      const purgedNodeIds = Array.from(
+        new Set(trashed.map((row) => row.node.id))
+      )
       for (const nodeId of purgedNodeIds) {
         await db.delete(nodes).where(eq(nodes.id, nodeId))
       }
@@ -204,7 +215,11 @@ const worker = createWorker(async (job) => {
           .where(eq(fileVersions.id, version.id))
       }
 
-      if (!objectKey || !mimeType?.startsWith("image/") || !thumbnailSubjectId) {
+      if (
+        !objectKey ||
+        !mimeType?.startsWith("image/") ||
+        !thumbnailSubjectId
+      ) {
         return { skipped: "not an image" }
       }
       const settings = await loadS3SettingsFromDb()
@@ -256,32 +271,48 @@ worker.on("failed", (job, error) => {
   })
 })
 
-await maintenanceQueue.upsertJobScheduler("uploads-expire-incomplete", {
-  every: 60_000,
-}, {
-  name: "uploads.expireIncomplete",
-  data: {},
-})
+await maintenanceQueue.upsertJobScheduler(
+  "uploads-expire-incomplete",
+  {
+    every: 60_000,
+  },
+  {
+    name: "uploads.expireIncomplete",
+    data: {},
+  }
+)
 
-await maintenanceQueue.upsertJobScheduler("uploads-abort-stale-multipart", {
-  every: 300_000,
-}, {
-  name: "uploads.abortStaleMultipart",
-  data: {},
-})
+await maintenanceQueue.upsertJobScheduler(
+  "uploads-abort-stale-multipart",
+  {
+    every: 300_000,
+  },
+  {
+    name: "uploads.abortStaleMultipart",
+    data: {},
+  }
+)
 
-await maintenanceQueue.upsertJobScheduler("trash-purge-expired", {
-  every: 3_600_000,
-}, {
-  name: "trash.purgeExpired",
-  data: {},
-})
+await maintenanceQueue.upsertJobScheduler(
+  "trash-purge-expired",
+  {
+    every: 3_600_000,
+  },
+  {
+    name: "trash.purgeExpired",
+    data: {},
+  }
+)
 
-await maintenanceQueue.upsertJobScheduler("quotas-recalculate", {
-  every: 3_600_000,
-}, {
-  name: "quotas.recalculate",
-  data: {},
-})
+await maintenanceQueue.upsertJobScheduler(
+  "quotas-recalculate",
+  {
+    every: 3_600_000,
+  },
+  {
+    name: "quotas.recalculate",
+    data: {},
+  }
+)
 
 logger.info("Shelf worker started")

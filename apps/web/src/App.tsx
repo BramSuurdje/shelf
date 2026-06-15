@@ -23,14 +23,6 @@ import {
 } from "@heroicons/react/24/outline"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import * as React from "react"
-import { useForm } from "react-hook-form"
-import { toast } from "sonner"
-import { z } from "zod"
-
-import { apiFetch, authFetch, type ShelfNode } from "@/api/client"
-import { usePreferences } from "@/stores/preferences"
-import { useUploadStore } from "@/upload/store"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -58,6 +50,13 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import * as React from "react"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+import { z } from "zod"
+import { apiFetch, authFetch, type ShelfNode } from "@/api/client"
+import { usePreferences } from "@/stores/preferences"
+import { useUploadStore } from "@/upload/store"
 
 type Section =
   | "my-shelf"
@@ -136,7 +135,11 @@ const loginSchema = z.object({
 
 const signupSchema = loginSchema.extend({
   name: z.string().min(1),
-  username: z.string().min(3).max(32).regex(/^[a-z0-9_]{3,32}$/),
+  username: z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[a-z0-9_]{3,32}$/),
   inviteToken: z.string().optional(),
 })
 
@@ -145,7 +148,11 @@ const setupFormSchema = z.object({
   publicAppUrl: z.url(),
   name: z.string().min(1),
   email: z.email(),
-  username: z.string().min(3).max(32).regex(/^[a-z0-9_]{3,32}$/),
+  username: z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[a-z0-9_]{3,32}$/),
   password: z.string().min(10),
   s3Endpoint: z.url(),
   s3Region: z.string().min(1),
@@ -266,17 +273,18 @@ const navigation: Array<{
 
 export function App() {
   const publicMatch = /^\/public\/([^/]+)$/.exec(window.location.pathname)
-  return publicMatch ? <PublicLinkView token={publicMatch[1]} /> : <AuthenticatedApp />
+  return publicMatch ? (
+    <PublicLinkView token={publicMatch[1]} />
+  ) : (
+    <AuthenticatedApp />
+  )
 }
 
 function PublicLinkView({ token }: { token: string }) {
   const queryClient = useQueryClient()
   const [password, setPassword] = React.useState("")
   const [passwordSubmitted, setPasswordSubmitted] = React.useState(false)
-  const {
-    data: publicLinkData,
-    error: publicLinkError,
-  } = useQuery({
+  const { data: publicLinkData, error: publicLinkError } = useQuery({
     queryKey: ["public-link", token, passwordSubmitted],
     queryFn: () =>
       apiFetch<{ node: ShelfNode; children: ShelfNode[] }>(`/public/${token}`, {
@@ -305,7 +313,8 @@ function PublicLinkView({ token }: { token: string }) {
       link.click()
       URL.revokeObjectURL(url)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["public-link", token] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["public-link", token] }),
   })
 
   return (
@@ -316,8 +325,12 @@ function PublicLinkView({ token }: { token: string }) {
             <GlobeAltIcon className="size-5" />
           </div>
           <div>
-            <h1 className="font-heading text-lg font-semibold">Shared Shelf link</h1>
-            <p className="text-sm text-muted-foreground">View or download shared content.</p>
+            <h1 className="font-heading font-semibold text-lg">
+              Shared Shelf link
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              View or download shared content.
+            </p>
           </div>
         </div>
 
@@ -335,8 +348,12 @@ function PublicLinkView({ token }: { token: string }) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <Button className="w-full" type="submit">Unlock link</Button>
-            <p className="text-sm text-destructive">{publicLinkError.message}</p>
+            <Button className="w-full" type="submit">
+              Unlock link
+            </Button>
+            <p className="text-destructive text-sm">
+              {publicLinkError.message}
+            </p>
           </form>
         ) : publicLinkData ? (
           <div className="space-y-4">
@@ -347,8 +364,10 @@ function PublicLinkView({ token }: { token: string }) {
                 <DocumentIcon className="size-8 text-muted-foreground" />
               )}
               <div className="min-w-0">
-                <div className="truncate font-medium">{publicLinkData.node.name}</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="truncate font-medium">
+                  {publicLinkData.node.name}
+                </div>
+                <div className="text-muted-foreground text-sm">
                   {publicLinkData.node.type}
                   {publicLinkData.node.type === "file"
                     ? `, ${formatBytes(publicLinkData.node.sizeBytes)}`
@@ -356,21 +375,24 @@ function PublicLinkView({ token }: { token: string }) {
                 </div>
               </div>
             </div>
-            {publicLinkData.node.type === "folder" && publicLinkData.children.length > 0 ? (
+            {publicLinkData.node.type === "folder" &&
+            publicLinkData.children.length > 0 ? (
               <div className="max-h-64 overflow-auto rounded-md border border-border">
                 {publicLinkData.children.map((child) => (
                   <div
                     key={child.id}
-                    className="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0"
+                    className="flex items-center gap-2 border-border border-b px-3 py-2 last:border-b-0"
                   >
                     {child.type === "folder" ? (
                       <FolderIcon className="size-4 text-primary" />
                     ) : (
                       <DocumentIcon className="size-4 text-muted-foreground" />
                     )}
-                    <span className="min-w-0 flex-1 truncate text-sm">{child.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {child.name}
+                    </span>
                     {child.type === "file" ? (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         {formatBytes(child.sizeBytes)}
                       </span>
                     ) : null}
@@ -386,11 +408,15 @@ function PublicLinkView({ token }: { token: string }) {
               Download
             </Button>
             {downloadMutation.error ? (
-              <p className="text-sm text-destructive">{downloadMutation.error.message}</p>
+              <p className="text-destructive text-sm">
+                {downloadMutation.error.message}
+              </p>
             ) : null}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Loading shared content.</p>
+          <p className="text-muted-foreground text-sm">
+            Loading shared content.
+          </p>
         )}
       </div>
     </div>
@@ -415,14 +441,12 @@ function AuthenticatedApp() {
     refetch: refetchSetupStatus,
   } = useQuery({
     queryKey: ["setup-status"],
-    queryFn: () => apiFetch<{ required: boolean; disabled: boolean }>("/setup/status"),
+    queryFn: () =>
+      apiFetch<{ required: boolean; disabled: boolean }>("/setup/status"),
     retry: false,
   })
 
-  const {
-    data: currentUserData,
-    refetch: refetchCurrentUser,
-  } = useQuery({
+  const { data: currentUserData, refetch: refetchCurrentUser } = useQuery({
     queryKey: ["current-user"],
     queryFn: () => apiFetch<CurrentUser>("/auth/current-user"),
     enabled: setupStatus?.required === false,
@@ -482,7 +506,8 @@ function AuthenticatedApp() {
       void queryClient.invalidateQueries({ queryKey: ["recent"] })
     }
     window.addEventListener("shelf:upload-complete", handleUploadComplete)
-    return () => window.removeEventListener("shelf:upload-complete", handleUploadComplete)
+    return () =>
+      window.removeEventListener("shelf:upload-complete", handleUploadComplete)
   }, [queryClient])
 
   React.useEffect(() => {
@@ -502,7 +527,8 @@ function AuthenticatedApp() {
       const topLevelFolders = new Set<string>()
       for (const file of files) {
         const relativePath =
-          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+          file.name
         const pathParts = relativePath.split("/").filter(Boolean)
         if (pathParts.length > 1 && pathParts[0]) {
           topLevelFolders.add(pathParts[0])
@@ -515,22 +541,28 @@ function AuthenticatedApp() {
 
       for (const file of files) {
         const relativePath =
-          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+          file.name
         const pathParts = relativePath.split("/").filter(Boolean)
         const folderParts = pathParts.slice(0, -1)
         let currentPath = ""
 
         for (const folderName of folderParts) {
-          const nextPath = currentPath ? `${currentPath}/${folderName}` : folderName
+          const nextPath = currentPath
+            ? `${currentPath}/${folderName}`
+            : folderName
           if (!folderIds.has(nextPath)) {
-            const result = await apiFetch<{ nodeId: string }>("/nodes/folders", {
-              method: "POST",
-              body: JSON.stringify({
-                mutationId: crypto.randomUUID(),
-                parentId: folderIds.get(currentPath) ?? null,
-                name: folderName,
-              }),
-            })
+            const result = await apiFetch<{ nodeId: string }>(
+              "/nodes/folders",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  mutationId: crypto.randomUUID(),
+                  parentId: folderIds.get(currentPath) ?? null,
+                  name: folderName,
+                }),
+              }
+            )
             folderIds.set(nextPath, result.nodeId)
           }
           currentPath = nextPath
@@ -646,7 +678,8 @@ function AuthenticatedWorkspace({
   viewMode: "table" | "grid"
 }) {
   return (
-    <div
+    <section
+      aria-label="File upload"
       className="min-h-svh bg-background text-foreground"
       onDragOver={(event) => {
         event.preventDefault()
@@ -657,19 +690,23 @@ function AuthenticatedWorkspace({
         event.preventDefault()
         dispatch({ type: "set-dragging", isDragging: false })
         void extractDroppedFiles(event.dataTransfer).then((files) =>
-          uploadFolderFiles(files.length > 0 ? files : Array.from(event.dataTransfer.files))
+          uploadFolderFiles(
+            files.length > 0 ? files : Array.from(event.dataTransfer.files)
+          )
         )
       }}
     >
       <div className="flex min-h-svh">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar/70 px-3 py-4 lg:block">
+        <aside className="hidden w-64 shrink-0 border-border border-r bg-sidebar/70 px-3 py-4 lg:block">
           <div className="mb-6 flex items-center gap-2 px-2">
             <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <FolderIcon className="size-5" />
             </div>
             <div>
-              <div className="font-heading text-base font-semibold">Shelf</div>
-              <div className="text-xs text-muted-foreground">Self-hosted drive</div>
+              <div className="font-heading font-semibold text-base">Shelf</div>
+              <div className="text-muted-foreground text-xs">
+                Self-hosted drive
+              </div>
             </div>
           </div>
 
@@ -685,7 +722,9 @@ function AuthenticatedWorkspace({
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
-                  onClick={() => dispatch({ type: "set-section", section: item.id })}
+                  onClick={() =>
+                    dispatch({ type: "set-section", section: item.id })
+                  }
                   type="button"
                 >
                   <Icon className="size-4" />
@@ -697,7 +736,7 @@ function AuthenticatedWorkspace({
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-border border-b px-4">
             <Button
               aria-label="Open navigation"
               variant="ghost"
@@ -713,7 +752,10 @@ function AuthenticatedWorkspace({
                 aria-label="Search files, folders, shares"
                 value={searchQuery}
                 onChange={(event) =>
-                  dispatch({ type: "set-search", searchQuery: event.target.value })
+                  dispatch({
+                    type: "set-search",
+                    searchQuery: event.target.value,
+                  })
                 }
                 className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
                 placeholder="Search files, folders, shares"
@@ -725,7 +767,9 @@ function AuthenticatedWorkspace({
               variant="outline"
               size="sm"
               onClick={() =>
-                setDensity(density === "comfortable" ? "compact" : "comfortable")
+                setDensity(
+                  density === "comfortable" ? "compact" : "comfortable"
+                )
               }
             >
               {density === "comfortable" ? "Compact" : "Comfortable"}
@@ -734,7 +778,9 @@ function AuthenticatedWorkspace({
               variant="outline"
               size="icon-sm"
               aria-label="Toggle view"
-              onClick={() => setViewMode(viewMode === "table" ? "grid" : "table")}
+              onClick={() =>
+                setViewMode(viewMode === "table" ? "grid" : "table")
+              }
               title="Toggle view"
             >
               {viewMode === "table" ? (
@@ -751,8 +797,12 @@ function AuthenticatedWorkspace({
                 <NodeListPanel
                   emptyLabel="No search results"
                   nodes={searchData?.nodes ?? []}
-                  onOpenFolder={(id) => dispatch({ type: "open-folder", parentId: id })}
-                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
+                  onOpenFolder={(id) =>
+                    dispatch({ type: "open-folder", parentId: id })
+                  }
+                  onSelectNode={(node) =>
+                    dispatch({ type: "select-node", node })
+                  }
                   selectedNode={selectedNode}
                   title="Search results"
                 />
@@ -763,10 +813,14 @@ function AuthenticatedWorkspace({
                   fileInputRef={fileInputRef}
                   folderForm={folderForm}
                   nodes={nodes}
-                  onOpenFolder={(id) => dispatch({ type: "open-folder", parentId: id })}
+                  onOpenFolder={(id) =>
+                    dispatch({ type: "open-folder", parentId: id })
+                  }
                   onPickFolder={() => folderInputRef.current?.click()}
                   onPickFiles={() => fileInputRef.current?.click()}
-                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
+                  onSelectNode={(node) =>
+                    dispatch({ type: "select-node", node })
+                  }
                   parentId={parentId}
                   selectedNode={selectedNode}
                   viewMode={viewMode}
@@ -778,13 +832,15 @@ function AuthenticatedWorkspace({
                   onOpenFolder={(id) => {
                     dispatch({ type: "open-my-shelf-folder", parentId: id })
                   }}
-                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
+                  onSelectNode={(node) =>
+                    dispatch({ type: "select-node", node })
+                  }
                   selectedNode={selectedNode}
                 />
               )}
             </section>
 
-            <aside className="hidden border-l border-border bg-muted/25 xl:block">
+            <aside className="hidden border-border border-l bg-muted/25 xl:block">
               <DetailsPanel node={selectedNode} />
               <UploadDrawer
                 cancel={cancel}
@@ -823,13 +879,13 @@ function AuthenticatedWorkspace({
 
       {isDragging ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="rounded-md border border-dashed border-primary bg-background px-8 py-6 text-center">
+          <div className="rounded-md border border-primary border-dashed bg-background px-8 py-6 text-center">
             <ArrowDownTrayIcon className="mx-auto mb-3 size-8 text-primary" />
             <div className="font-medium">Drop files to upload</div>
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   )
 }
 
@@ -864,8 +920,8 @@ function FileBrowser({
     <div className="mx-auto max-w-6xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold">My Shelf</h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+          <h1 className="font-heading font-semibold text-2xl">My Shelf</h1>
+          <div className="mt-1 flex items-center gap-2 text-muted-foreground text-sm">
             <button
               className="hover:text-foreground"
               onClick={() => onOpenFolder(null)}
@@ -904,13 +960,18 @@ function FileBrowser({
       </div>
 
       {nodes.length === 0 ? (
-        <div className="flex min-h-80 flex-col items-center justify-center rounded-md border border-dashed border-border text-center">
+        <div className="flex min-h-80 flex-col items-center justify-center rounded-md border border-border border-dashed text-center">
           <FolderIcon className="mb-3 size-10 text-muted-foreground" />
-          <h2 className="font-heading text-lg font-semibold">No files here yet</h2>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          <h2 className="font-heading font-semibold text-lg">
+            No files here yet
+          </h2>
+          <p className="mt-1 max-w-sm text-muted-foreground text-sm">
             Create a folder or upload files to start building this shelf.
           </p>
-          <Button className="mt-4" onClick={() => fileInputRef.current?.click()}>
+          <Button
+            className="mt-4"
+            onClick={() => fileInputRef.current?.click()}
+          >
             <ArrowDownTrayIcon className="size-4" />
             Upload files
           </Button>
@@ -918,12 +979,18 @@ function FileBrowser({
       ) : viewMode === "table" ? (
         <div className="overflow-hidden rounded-md border border-border">
           <Table className="table-fixed">
-            <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+            <TableHeader className="bg-muted/60 text-muted-foreground text-xs uppercase">
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="hidden w-28 sm:table-cell">Type</TableHead>
-                <TableHead className="hidden w-32 md:table-cell">Size</TableHead>
-                <TableHead className="hidden w-44 lg:table-cell">Updated</TableHead>
+                <TableHead className="hidden w-28 sm:table-cell">
+                  Type
+                </TableHead>
+                <TableHead className="hidden w-32 md:table-cell">
+                  Size
+                </TableHead>
+                <TableHead className="hidden w-44 lg:table-cell">
+                  Updated
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -961,8 +1028,10 @@ function FileBrowser({
               ) : (
                 <DocumentIcon className="mb-8 size-8 text-muted-foreground" />
               )}
-              <div className="truncate text-sm font-medium">{node.name}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{formatBytes(node.sizeBytes)}</div>
+              <div className="truncate font-medium text-sm">{node.name}</div>
+              <div className="mt-1 text-muted-foreground text-xs">
+                {formatBytes(node.sizeBytes)}
+              </div>
             </button>
           ))}
         </div>
@@ -986,7 +1055,7 @@ function NodeRow({
 }) {
   return (
     <TableRow
-      className={`border-t border-border transition hover:bg-muted/50 ${
+      className={`border-border border-t transition hover:bg-muted/50 ${
         selected ? "bg-primary/5" : ""
       }`}
     >
@@ -1020,13 +1089,19 @@ function NodeRow({
   )
 }
 
-function FullScreenMessage({ title, message }: { title: string; message: string }) {
+function FullScreenMessage({
+  title,
+  message,
+}: {
+  title: string
+  message: string
+}) {
   return (
     <div className="flex min-h-svh items-center justify-center bg-background px-4 text-foreground">
       <div className="text-center">
         <FolderIcon className="mx-auto mb-3 size-10 text-primary" />
-        <h1 className="font-heading text-2xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <h1 className="font-heading font-semibold text-2xl">{title}</h1>
+        <p className="mt-2 text-muted-foreground text-sm">{message}</p>
       </div>
     </div>
   )
@@ -1041,7 +1116,13 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
   })
   const signupForm = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { name: "", email: "", username: "", password: "", inviteToken: "" },
+    defaultValues: {
+      name: "",
+      email: "",
+      username: "",
+      password: "",
+      inviteToken: "",
+    },
   })
   const loginMutation = useMutation({
     mutationFn: (values: LoginForm) => authFetch("/sign-in/email", values),
@@ -1052,7 +1133,10 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
   })
   const signupMutation = useMutation({
     mutationFn: (values: SignupForm) =>
-      authFetch("/sign-up/email", { ...values, mutationId: crypto.randomUUID() }),
+      authFetch("/sign-up/email", {
+        ...values,
+        mutationId: crypto.randomUUID(),
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["current-user"] })
       onComplete()
@@ -1064,7 +1148,7 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <FolderIcon className="mx-auto mb-3 size-9 text-primary" />
-          <h1 className="font-heading text-2xl font-semibold">Shelf</h1>
+          <h1 className="font-heading font-semibold text-2xl">Shelf</h1>
         </div>
         <div className="mb-3 grid grid-cols-2 rounded-md border border-border p-1">
           <button
@@ -1086,28 +1170,59 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
         {mode === "login" ? (
           <form
             className="space-y-3"
-            onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))}
+            onSubmit={loginForm.handleSubmit((values) =>
+              loginMutation.mutate(values)
+            )}
           >
-            <TextInput label="Email" type="email" {...loginForm.register("email")} />
-            <TextInput label="Password" type="password" {...loginForm.register("password")} />
-            <Button className="w-full" type="submit">Sign in</Button>
+            <TextInput
+              label="Email"
+              type="email"
+              {...loginForm.register("email")}
+            />
+            <TextInput
+              label="Password"
+              type="password"
+              {...loginForm.register("password")}
+            />
+            <Button className="w-full" type="submit">
+              Sign in
+            </Button>
             {loginMutation.error ? (
-              <p className="text-sm text-destructive">{loginMutation.error.message}</p>
+              <p className="text-destructive text-sm">
+                {loginMutation.error.message}
+              </p>
             ) : null}
           </form>
         ) : (
           <form
             className="space-y-3"
-            onSubmit={signupForm.handleSubmit((values) => signupMutation.mutate(values))}
+            onSubmit={signupForm.handleSubmit((values) =>
+              signupMutation.mutate(values)
+            )}
           >
             <TextInput label="Name" {...signupForm.register("name")} />
-            <TextInput label="Email" type="email" {...signupForm.register("email")} />
+            <TextInput
+              label="Email"
+              type="email"
+              {...signupForm.register("email")}
+            />
             <TextInput label="Username" {...signupForm.register("username")} />
-            <TextInput label="Invite token" {...signupForm.register("inviteToken")} />
-            <TextInput label="Password" type="password" {...signupForm.register("password")} />
-            <Button className="w-full" type="submit">Create account</Button>
+            <TextInput
+              label="Invite token"
+              {...signupForm.register("inviteToken")}
+            />
+            <TextInput
+              label="Password"
+              type="password"
+              {...signupForm.register("password")}
+            />
+            <Button className="w-full" type="submit">
+              Create account
+            </Button>
             {signupMutation.error ? (
-              <p className="text-sm text-destructive">{signupMutation.error.message}</p>
+              <p className="text-destructive text-sm">
+                {signupMutation.error.message}
+              </p>
             ) : null}
           </form>
         )}
@@ -1118,7 +1233,8 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
 
 function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
   const queryClient = useQueryClient()
-  const [verifiedStorageSignature, setVerifiedStorageSignature] = React.useState<string | null>(null)
+  const [verifiedStorageSignature, setVerifiedStorageSignature] =
+    React.useState<string | null>(null)
   const form = useForm<SetupFormInput, unknown, SetupForm>({
     resolver: zodResolver(setupFormSchema),
     defaultValues: {
@@ -1166,7 +1282,9 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
             publicBaseUrl: values.s3PublicBaseUrl,
           },
           quotas: {
-            defaultUserQuotaBytes: Math.round(values.defaultUserQuotaGb * 1024 ** 3),
+            defaultUserQuotaBytes: Math.round(
+              values.defaultUserQuotaGb * 1024 ** 3
+            ),
             globalQuotaBytes: values.globalQuotaGb
               ? Math.round(values.globalQuotaGb * 1024 ** 3)
               : undefined,
@@ -1221,19 +1339,28 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
       >
         <div className="lg:col-span-2">
           <FolderIcon className="mb-3 size-9 text-primary" />
-          <h1 className="font-heading text-3xl font-semibold">Set up Shelf</h1>
+          <h1 className="font-heading font-semibold text-3xl">Set up Shelf</h1>
         </div>
         <Panel title="Owner">
           <TextInput label="Name" {...form.register("name")} />
           <TextInput label="Email" type="email" {...form.register("email")} />
           <TextInput label="Username" {...form.register("username")} />
-          <TextInput label="Password" type="password" {...form.register("password")} />
+          <TextInput
+            label="Password"
+            type="password"
+            {...form.register("password")}
+          />
         </Panel>
         <Panel title="Instance">
           <TextInput label="App name" {...form.register("appName")} />
-          <TextInput label="Public app URL" {...form.register("publicAppUrl")} />
+          <TextInput
+            label="Public app URL"
+            {...form.register("publicAppUrl")}
+          />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted-foreground">Registration</span>
+            <span className="mb-1 block text-muted-foreground">
+              Registration
+            </span>
             <select
               className="h-9 w-full rounded-md border border-input bg-background px-3"
               {...form.register("registrationMode")}
@@ -1248,35 +1375,75 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
           <TextInput label="Endpoint" {...form.register("s3Endpoint")} />
           <TextInput label="Region" {...form.register("s3Region")} />
           <TextInput label="Bucket" {...form.register("s3Bucket")} />
-          <TextInput label="Access key ID" {...form.register("s3AccessKeyId")} />
-          <TextInput label="Secret access key" type="password" {...form.register("s3SecretAccessKey")} />
-          <TextInput label="Public base URL" {...form.register("s3PublicBaseUrl")} />
-          <CheckboxInput label="Force path-style URLs" {...form.register("s3ForcePathStyle")} />
+          <TextInput
+            label="Access key ID"
+            {...form.register("s3AccessKeyId")}
+          />
+          <TextInput
+            label="Secret access key"
+            type="password"
+            {...form.register("s3SecretAccessKey")}
+          />
+          <TextInput
+            label="Public base URL"
+            {...form.register("s3PublicBaseUrl")}
+          />
+          <CheckboxInput
+            label="Force path-style URLs"
+            {...form.register("s3ForcePathStyle")}
+          />
           <Button
             variant="outline"
             type="button"
-            onClick={form.handleSubmit((values) => testS3Mutation.mutate(values))}
+            onClick={form.handleSubmit((values) =>
+              testS3Mutation.mutate(values)
+            )}
           >
             Test S3 connection
           </Button>
           {testS3Mutation.error ? (
-            <p className="text-sm text-destructive">{testS3Mutation.error.message}</p>
+            <p className="text-destructive text-sm">
+              {testS3Mutation.error.message}
+            </p>
           ) : null}
           {verifiedStorageSignature ? (
-            <p className="text-sm text-muted-foreground">S3 connection verified.</p>
+            <p className="text-muted-foreground text-sm">
+              S3 connection verified.
+            </p>
           ) : null}
         </Panel>
         <Panel title="Limits and providers">
-          <TextInput label="Default quota GB" type="number" {...form.register("defaultUserQuotaGb")} />
-          <TextInput label="Global quota GB" type="number" {...form.register("globalQuotaGb")} />
-          <CheckboxInput label="GitHub OAuth enabled" {...form.register("githubEnabled")} />
-          <CheckboxInput label="Google OAuth enabled" {...form.register("googleEnabled")} />
-          <CheckboxInput label="SMTP enabled" {...form.register("smtpEnabled")} />
+          <TextInput
+            label="Default quota GB"
+            type="number"
+            {...form.register("defaultUserQuotaGb")}
+          />
+          <TextInput
+            label="Global quota GB"
+            type="number"
+            {...form.register("globalQuotaGb")}
+          />
+          <CheckboxInput
+            label="GitHub OAuth enabled"
+            {...form.register("githubEnabled")}
+          />
+          <CheckboxInput
+            label="Google OAuth enabled"
+            {...form.register("googleEnabled")}
+          />
+          <CheckboxInput
+            label="SMTP enabled"
+            {...form.register("smtpEnabled")}
+          />
         </Panel>
         <div className="lg:col-span-2">
-          <Button size="lg" type="submit">Complete setup</Button>
+          <Button size="lg" type="submit">
+            Complete setup
+          </Button>
           {setupMutation.error ? (
-            <p className="mt-3 text-sm text-destructive">{setupMutation.error.message}</p>
+            <p className="mt-3 text-destructive text-sm">
+              {setupMutation.error.message}
+            </p>
           ) : null}
         </div>
       </form>
@@ -1314,7 +1481,9 @@ function storagePatch(values: AdminStorageForm) {
     region: values.region,
     bucket: values.bucket,
     ...(values.accessKeyId ? { accessKeyId: values.accessKeyId } : {}),
-    ...(values.secretAccessKey ? { secretAccessKey: values.secretAccessKey } : {}),
+    ...(values.secretAccessKey
+      ? { secretAccessKey: values.secretAccessKey }
+      : {}),
     forcePathStyle: values.forcePathStyle,
     publicBaseUrl: values.publicBaseUrl,
   }
@@ -1355,7 +1524,8 @@ function resetAdminForms(
       settings["registration.mode"] === "disabled"
         ? settings["registration.mode"]
         : "invite_only",
-    defaultRole: settings["registration.defaultRole"] === "admin" ? "admin" : "user",
+    defaultRole:
+      settings["registration.defaultRole"] === "admin" ? "admin" : "user",
     defaultUserQuotaGb:
       typeof settings["storage.defaultUserQuotaBytes"] === "number"
         ? settings["storage.defaultUserQuotaBytes"] / 1024 ** 3
@@ -1378,7 +1548,8 @@ function resetAdminForms(
       typeof settings["storage.maxFileSizeBytes"] === "number"
         ? settings["storage.maxFileSizeBytes"] / 1024 ** 2
         : 5120,
-    emailVerificationRequired: settings["security.emailVerificationRequired"] === true,
+    emailVerificationRequired:
+      settings["security.emailVerificationRequired"] === true,
     passwordMinLength:
       typeof settings["security.passwordMinLength"] === "number"
         ? settings["security.passwordMinLength"]
@@ -1410,7 +1581,9 @@ function resetAdminForms(
         ? settings["storage.region"]
         : "auto",
     bucket:
-      typeof settings["storage.bucket"] === "string" ? settings["storage.bucket"] : "",
+      typeof settings["storage.bucket"] === "string"
+        ? settings["storage.bucket"]
+        : "",
     accessKeyId: "",
     secretAccessKey: "",
     forcePathStyle: settings["storage.forcePathStyle"] === true,
@@ -1420,12 +1593,16 @@ function resetAdminForms(
         : "",
   })
   smtpForm.reset({
-    host: typeof settings["smtp.host"] === "string" ? settings["smtp.host"] : "",
-    port: typeof settings["smtp.port"] === "number" ? settings["smtp.port"] : 587,
+    host:
+      typeof settings["smtp.host"] === "string" ? settings["smtp.host"] : "",
+    port:
+      typeof settings["smtp.port"] === "number" ? settings["smtp.port"] : 587,
     secure: settings["smtp.secure"] === true,
-    user: typeof settings["smtp.user"] === "string" ? settings["smtp.user"] : "",
+    user:
+      typeof settings["smtp.user"] === "string" ? settings["smtp.user"] : "",
     password: "",
-    from: typeof settings["smtp.from"] === "string" ? settings["smtp.from"] : "",
+    from:
+      typeof settings["smtp.from"] === "string" ? settings["smtp.from"] : "",
   })
 }
 
@@ -1443,14 +1620,32 @@ function SectionContent({
   selectedNode: ShelfNode | null
 }) {
   if (section === "shared") {
-    return <SharedPanel onOpenFolder={onOpenFolder} onSelectNode={onSelectNode} selectedNode={selectedNode} />
+    return (
+      <SharedPanel
+        onOpenFolder={onOpenFolder}
+        onSelectNode={onSelectNode}
+        selectedNode={selectedNode}
+      />
+    )
   }
   if (section === "public-links") return <PublicLinksPanel />
   if (section === "recent") {
-    return <RecentPanel onOpenFolder={onOpenFolder} onSelectNode={onSelectNode} selectedNode={selectedNode} />
+    return (
+      <RecentPanel
+        onOpenFolder={onOpenFolder}
+        onSelectNode={onSelectNode}
+        selectedNode={selectedNode}
+      />
+    )
   }
   if (section === "trash") {
-    return <TrashPanel onOpenFolder={onOpenFolder} onSelectNode={onSelectNode} selectedNode={selectedNode} />
+    return (
+      <TrashPanel
+        onOpenFolder={onOpenFolder}
+        onSelectNode={onSelectNode}
+        selectedNode={selectedNode}
+      />
+    )
   }
   if (section === "admin") return <AdminPanel />
   return <ProfilePanel user={currentUser} />
@@ -1463,7 +1658,10 @@ function SharedPanel(props: {
 }) {
   const { data } = useQuery({
     queryKey: ["shared-with-me"],
-    queryFn: () => apiFetch<{ items: Array<{ node: ShelfNode; permission: string }> }>("/shares/shared-with-me"),
+    queryFn: () =>
+      apiFetch<{ items: Array<{ node: ShelfNode; permission: string }> }>(
+        "/shares/shared-with-me"
+      ),
   })
   return (
     <NodeListPanel
@@ -1575,7 +1773,8 @@ function PublicLinksPanel() {
           mutationId: crypto.randomUUID(),
         }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["public-links"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["public-links"] }),
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
@@ -1583,21 +1782,29 @@ function PublicLinksPanel() {
         method: "DELETE",
         body: JSON.stringify({ mutationId: crypto.randomUUID() }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["public-links"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["public-links"] }),
   })
   const rows = data?.publicLinks ?? []
   return (
     <Panel title="Public links">
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No public links created.</p>
+        <p className="text-muted-foreground text-sm">
+          No public links created.
+        </p>
       ) : (
         <div className="divide-y divide-border">
           {rows.map((row) => (
-            <div key={row.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+            <div
+              key={row.id}
+              className="flex items-center justify-between gap-3 py-3 text-sm"
+            >
               <div className="min-w-0">
                 <div className="truncate font-medium">{row.id}</div>
-                <div className="text-xs text-muted-foreground">
-                  <Badge variant={row.status === "active" ? "default" : "secondary"}>
+                <div className="text-muted-foreground text-xs">
+                  <Badge
+                    variant={row.status === "active" ? "default" : "secondary"}
+                  >
                     {row.status}
                   </Badge>{" "}
                   {row.downloadCount}
@@ -1737,12 +1944,16 @@ function useAdminPanel() {
   }, [settingsForm, settingsData, smtpForm, storageForm])
 
   const userActionMutation = useMutation({
-    mutationFn: (input: { userId: string; action: "suspend" | "restore" | "promote" | "demote" }) =>
+    mutationFn: (input: {
+      userId: string
+      action: "suspend" | "restore" | "promote" | "demote"
+    }) =>
       apiFetch(`/admin/users/${input.userId}/${input.action}`, {
         method: "POST",
         body: JSON.stringify({ mutationId: crypto.randomUUID() }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   })
   const quotaMutation = useMutation({
     mutationFn: (input: { userId: string; quotaGb: number }) =>
@@ -1753,7 +1964,8 @@ function useAdminPanel() {
           mutationId: crypto.randomUUID(),
         }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   })
   const usernameOverrideMutation = useMutation({
     mutationFn: (input: { userId: string; username: string }) =>
@@ -1802,7 +2014,8 @@ function useAdminPanel() {
         method: "POST",
         body: JSON.stringify({ mutationId: crypto.randomUUID() }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-invites"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin-invites"] }),
   })
   const settingsMutation = useMutation({
     mutationFn: (values: AdminSettingsForm) =>
@@ -1813,21 +2026,32 @@ function useAdminPanel() {
           settings: {
             "registration.mode": values.registrationMode,
             "registration.defaultRole": values.defaultRole,
-            "storage.defaultUserQuotaBytes": Math.round(Number(values.defaultUserQuotaGb) * 1024 ** 3),
+            "storage.defaultUserQuotaBytes": Math.round(
+              Number(values.defaultUserQuotaGb) * 1024 ** 3
+            ),
             "storage.globalQuotaBytes":
               values.globalQuotaGb === ""
                 ? null
                 : Math.round(Number(values.globalQuotaGb) * 1024 ** 3),
             "sharing.publicLinksEnabled": values.publicLinksEnabled,
             "sharing.folderSharingEnabled": values.folderSharingEnabled,
-            "sharing.defaultPublicLinkExpirationDays": Number(values.defaultPublicLinkExpirationDays),
-            "sharing.maxPublicLinkExpirationDays": Number(values.maxPublicLinkExpirationDays),
-            "storage.maxFileSizeBytes": Math.round(Number(values.maxUploadMb) * 1024 ** 2),
-            "security.emailVerificationRequired": values.emailVerificationRequired,
+            "sharing.defaultPublicLinkExpirationDays": Number(
+              values.defaultPublicLinkExpirationDays
+            ),
+            "sharing.maxPublicLinkExpirationDays": Number(
+              values.maxPublicLinkExpirationDays
+            ),
+            "storage.maxFileSizeBytes": Math.round(
+              Number(values.maxUploadMb) * 1024 ** 2
+            ),
+            "security.emailVerificationRequired":
+              values.emailVerificationRequired,
             "security.passwordMinLength": Number(values.passwordMinLength),
             "security.sessionLifetimeDays": Number(values.sessionLifetimeDays),
             "maintenance.trashRetentionDays": Number(values.trashRetentionDays),
-            "maintenance.pendingUploadExpirationMinutes": Number(values.pendingUploadExpirationMinutes),
+            "maintenance.pendingUploadExpirationMinutes": Number(
+              values.pendingUploadExpirationMinutes
+            ),
             "maintenance.thumbnailsEnabled": values.thumbnailsEnabled,
             "oauth.githubEnabled": values.githubEnabled,
             "oauth.googleEnabled": values.googleEnabled,
@@ -1835,7 +2059,8 @@ function useAdminPanel() {
           },
         }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-settings"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin-settings"] }),
   })
   const testStorageMutation = useMutation({
     mutationFn: (values: AdminStorageForm) =>
@@ -1851,7 +2076,9 @@ function useAdminPanel() {
   })
   const storageMutation = useMutation({
     mutationFn: (values: AdminStorageForm) => {
-      if (verifiedStorageSignatureRef.current !== storageSettingsSignature(values)) {
+      if (
+        verifiedStorageSignatureRef.current !== storageSettingsSignature(values)
+      ) {
         throw new Error("Test the current S3 settings before saving")
       }
       return apiFetch("/settings", {
@@ -1926,9 +2153,12 @@ function useAdminPanel() {
 
   return (
     <>
-      <Dialog open={Boolean(userDialog)} onOpenChange={(open) => {
-        if (!open) setUserDialog(null)
-      }}>
+      <Dialog
+        open={Boolean(userDialog)}
+        onOpenChange={(open) => {
+          if (!open) setUserDialog(null)
+        }}
+      >
         <DialogContent>
           <form
             className="flex flex-col gap-4"
@@ -1958,7 +2188,9 @@ function useAdminPanel() {
           >
             <DialogHeader>
               <DialogTitle>
-                {userDialog?.type === "quota" ? "Set User Quota" : "Override Username"}
+                {userDialog?.type === "quota"
+                  ? "Set User Quota"
+                  : "Override Username"}
               </DialogTitle>
               <DialogDescription>
                 {userDialog
@@ -1974,13 +2206,21 @@ function useAdminPanel() {
                   current ? { ...current, value: event.target.value } : current
                 )
               }
-              pattern={userDialog?.type === "username" ? "^[a-z0-9_]{3,32}$" : undefined}
+              pattern={
+                userDialog?.type === "username"
+                  ? "^[a-z0-9_]{3,32}$"
+                  : undefined
+              }
               required
               type={userDialog?.type === "quota" ? "number" : "text"}
               value={userDialog?.value ?? ""}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setUserDialog(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUserDialog(null)}
+              >
                 Cancel
               </Button>
               <Button type="submit">Save</Button>
@@ -1989,333 +2229,409 @@ function useAdminPanel() {
         </DialogContent>
       </Dialog>
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <Panel title="Users">
-        <div className="overflow-hidden rounded-md border border-border">
-          <Table>
-            <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Storage</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(usersData?.users ?? []).map((row) => (
-                <TableRow key={row.id} className="border-t border-border">
-                  <TableCell className="px-3 py-2">
-                    <div className="font-medium">{row.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {row.email} - @{row.username}
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2">
-                    <Badge variant="outline">{row.role}</Badge>
-                    {row.disabledAt ? (
-                      <Badge className="ml-2" variant="secondary">
-                        suspended
-                      </Badge>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="px-3 py-2">{formatBytes(row.usedBytes ?? 0)}</TableCell>
-                  <TableCell className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          userActionMutation.mutate({
-                            userId: row.id,
-                            action: row.disabledAt ? "restore" : "suspend",
-                          })
-                        }
-                      >
-                        {row.disabledAt ? "Restore" : "Suspend"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          userActionMutation.mutate({
-                            userId: row.id,
-                            action: row.role === "admin" ? "demote" : "promote",
-                          })
-                        }
-                      >
-                        {row.role === "admin" ? "Demote" : "Promote"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setUserDialog({ type: "quota", user: row, value: "" })
-                        }}
-                      >
-                        Quota
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setUserDialog({ type: "username", user: row, value: row.username })
-                        }}
-                      >
-                        Username
-                      </Button>
-                      {row.role !== "owner" ? (
+        <Panel title="Users">
+          <div className="overflow-hidden rounded-md border border-border">
+            <Table>
+              <TableHeader className="bg-muted/60 text-muted-foreground text-xs uppercase">
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Storage</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(usersData?.users ?? []).map((row) => (
+                  <TableRow key={row.id} className="border-border border-t">
+                    <TableCell className="px-3 py-2">
+                      <div className="font-medium">{row.name}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {row.email} - @{row.username}
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-3 py-2">
+                      <Badge variant="outline">{row.role}</Badge>
+                      {row.disabledAt ? (
+                        <Badge className="ml-2" variant="secondary">
+                          suspended
+                        </Badge>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="px-3 py-2">
+                      {formatBytes(row.usedBytes ?? 0)}
+                    </TableCell>
+                    <TableCell className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            userActionMutation.mutate({
+                              userId: row.id,
+                              action: row.disabledAt ? "restore" : "suspend",
+                            })
+                          }
+                        >
+                          {row.disabledAt ? "Restore" : "Suspend"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            userActionMutation.mutate({
+                              userId: row.id,
+                              action:
+                                row.role === "admin" ? "demote" : "promote",
+                            })
+                          }
+                        >
+                          {row.role === "admin" ? "Demote" : "Promote"}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => ownerTransferMutation.mutate(row.id)}
+                          onClick={() => {
+                            setUserDialog({
+                              type: "quota",
+                              user: row,
+                              value: "",
+                            })
+                          }}
                         >
-                          Transfer owner
+                          Quota
                         </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Panel>
-      <div className="space-y-4">
-        <Panel title="Settings">
-          <form
-            className="space-y-3"
-            onSubmit={settingsForm.handleSubmit((values) =>
-              settingsMutation.mutate(values)
-            )}
-          >
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-muted-foreground">Registration</span>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3"
-                {...settingsForm.register("registrationMode")}
-              >
-                <option value="invite_only">Invite only</option>
-                <option value="open">Open</option>
-                <option value="disabled">Disabled</option>
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-muted-foreground">Default role</span>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3"
-                {...settingsForm.register("defaultRole")}
-              >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            <TextInput
-              label="Default quota GB"
-              type="number"
-              step="0.1"
-              {...settingsForm.register("defaultUserQuotaGb", { valueAsNumber: true })}
-            />
-            <TextInput
-              label="Global quota GB"
-              type="number"
-              step="0.1"
-              {...settingsForm.register("globalQuotaGb")}
-            />
-            <TextInput
-              label="Max upload MB"
-              type="number"
-              step="1"
-              {...settingsForm.register("maxUploadMb", { valueAsNumber: true })}
-            />
-            <CheckboxInput
-              label="Public links enabled"
-              {...settingsForm.register("publicLinksEnabled")}
-            />
-            <CheckboxInput
-              label="Folder sharing enabled"
-              {...settingsForm.register("folderSharingEnabled")}
-            />
-            <TextInput
-              label="Default link expiration days"
-              type="number"
-              step="1"
-              {...settingsForm.register("defaultPublicLinkExpirationDays", { valueAsNumber: true })}
-            />
-            <TextInput
-              label="Maximum link expiration days"
-              type="number"
-              step="1"
-              {...settingsForm.register("maxPublicLinkExpirationDays", { valueAsNumber: true })}
-            />
-            <CheckboxInput
-              label="Require email verification"
-              {...settingsForm.register("emailVerificationRequired")}
-            />
-            <TextInput
-              label="Password minimum length"
-              type="number"
-              step="1"
-              {...settingsForm.register("passwordMinLength", { valueAsNumber: true })}
-            />
-            <TextInput
-              label="Session lifetime days"
-              type="number"
-              step="1"
-              {...settingsForm.register("sessionLifetimeDays", { valueAsNumber: true })}
-            />
-            <TextInput
-              label="Trash retention days"
-              type="number"
-              step="1"
-              {...settingsForm.register("trashRetentionDays", { valueAsNumber: true })}
-            />
-            <TextInput
-              label="Pending upload expiration minutes"
-              type="number"
-              step="1"
-              {...settingsForm.register("pendingUploadExpirationMinutes", { valueAsNumber: true })}
-            />
-            <CheckboxInput
-              label="Generate thumbnails"
-              {...settingsForm.register("thumbnailsEnabled")}
-            />
-            <CheckboxInput label="GitHub OAuth enabled" {...settingsForm.register("githubEnabled")} />
-            <CheckboxInput label="Google OAuth enabled" {...settingsForm.register("googleEnabled")} />
-            <CheckboxInput label="SMTP enabled" {...settingsForm.register("smtpEnabled")} />
-            <Button size="sm" type="submit">Save settings</Button>
-          </form>
-        </Panel>
-        <Panel title="Invites">
-          <form
-            className="space-y-3"
-            onSubmit={inviteForm.handleSubmit((values) => inviteMutation.mutate(values))}
-          >
-            <TextInput label="Email" type="email" {...inviteForm.register("email")} />
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-muted-foreground">Role</span>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3"
-                {...inviteForm.register("role")}
-              >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            <Button size="sm" type="submit">
-              <UserPlusIcon className="size-4" />
-              Create invite
-            </Button>
-          </form>
-          <div className="mt-4 divide-y divide-border">
-            {(invitesData?.invites ?? []).slice(0, 8).map((invite) => (
-              <div key={invite.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{invite.email}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {invite.role}
-                    {invite.acceptedAt ? ", accepted" : ""}
-                    {invite.revokedAt ? ", revoked" : ""}
-                  </div>
-                </div>
-                {!invite.acceptedAt && !invite.revokedAt ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => revokeInviteMutation.mutate(invite.id)}
-                  >
-                    Revoke
-                  </Button>
-                ) : null}
-              </div>
-            ))}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setUserDialog({
+                              type: "username",
+                              user: row,
+                              value: row.username,
+                            })
+                          }}
+                        >
+                          Username
+                        </Button>
+                        {row.role !== "owner" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => ownerTransferMutation.mutate(row.id)}
+                          >
+                            Transfer owner
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </Panel>
-        <Panel title="Storage">
-          <form
-            className="space-y-3"
-            onSubmit={storageForm.handleSubmit((values) => storageMutation.mutate(values))}
-          >
-            <TextInput label="S3 endpoint" {...storageForm.register("endpoint")} />
-            <TextInput label="Region" {...storageForm.register("region")} />
-            <TextInput label="Bucket" {...storageForm.register("bucket")} />
-            <TextInput label="Access key ID" {...storageForm.register("accessKeyId")} />
-            <TextInput
-              label="Secret access key"
-              type="password"
-              {...storageForm.register("secretAccessKey")}
-            />
-            <TextInput label="Public CDN base URL" {...storageForm.register("publicBaseUrl")} />
-            <CheckboxInput
-              label="Force path-style URLs"
-              {...storageForm.register("forcePathStyle")}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={storageForm.handleSubmit((values) =>
-                  testStorageMutation.mutate(values)
-                )}
-              >
-                Test storage
+        <div className="space-y-4">
+          <Panel title="Settings">
+            <form
+              className="space-y-3"
+              onSubmit={settingsForm.handleSubmit((values) =>
+                settingsMutation.mutate(values)
+              )}
+            >
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-muted-foreground">Registration</span>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3"
+                  {...settingsForm.register("registrationMode")}
+                >
+                  <option value="invite_only">Invite only</option>
+                  <option value="open">Open</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-muted-foreground">Default role</span>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3"
+                  {...settingsForm.register("defaultRole")}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <TextInput
+                label="Default quota GB"
+                type="number"
+                step="0.1"
+                {...settingsForm.register("defaultUserQuotaGb", {
+                  valueAsNumber: true,
+                })}
+              />
+              <TextInput
+                label="Global quota GB"
+                type="number"
+                step="0.1"
+                {...settingsForm.register("globalQuotaGb")}
+              />
+              <TextInput
+                label="Max upload MB"
+                type="number"
+                step="1"
+                {...settingsForm.register("maxUploadMb", {
+                  valueAsNumber: true,
+                })}
+              />
+              <CheckboxInput
+                label="Public links enabled"
+                {...settingsForm.register("publicLinksEnabled")}
+              />
+              <CheckboxInput
+                label="Folder sharing enabled"
+                {...settingsForm.register("folderSharingEnabled")}
+              />
+              <TextInput
+                label="Default link expiration days"
+                type="number"
+                step="1"
+                {...settingsForm.register("defaultPublicLinkExpirationDays", {
+                  valueAsNumber: true,
+                })}
+              />
+              <TextInput
+                label="Maximum link expiration days"
+                type="number"
+                step="1"
+                {...settingsForm.register("maxPublicLinkExpirationDays", {
+                  valueAsNumber: true,
+                })}
+              />
+              <CheckboxInput
+                label="Require email verification"
+                {...settingsForm.register("emailVerificationRequired")}
+              />
+              <TextInput
+                label="Password minimum length"
+                type="number"
+                step="1"
+                {...settingsForm.register("passwordMinLength", {
+                  valueAsNumber: true,
+                })}
+              />
+              <TextInput
+                label="Session lifetime days"
+                type="number"
+                step="1"
+                {...settingsForm.register("sessionLifetimeDays", {
+                  valueAsNumber: true,
+                })}
+              />
+              <TextInput
+                label="Trash retention days"
+                type="number"
+                step="1"
+                {...settingsForm.register("trashRetentionDays", {
+                  valueAsNumber: true,
+                })}
+              />
+              <TextInput
+                label="Pending upload expiration minutes"
+                type="number"
+                step="1"
+                {...settingsForm.register("pendingUploadExpirationMinutes", {
+                  valueAsNumber: true,
+                })}
+              />
+              <CheckboxInput
+                label="Generate thumbnails"
+                {...settingsForm.register("thumbnailsEnabled")}
+              />
+              <CheckboxInput
+                label="GitHub OAuth enabled"
+                {...settingsForm.register("githubEnabled")}
+              />
+              <CheckboxInput
+                label="Google OAuth enabled"
+                {...settingsForm.register("googleEnabled")}
+              />
+              <CheckboxInput
+                label="SMTP enabled"
+                {...settingsForm.register("smtpEnabled")}
+              />
+              <Button size="sm" type="submit">
+                Save settings
               </Button>
-              <Button size="sm" type="submit">Save storage</Button>
-            </div>
-            {testStorageMutation.error ? (
-              <p className="text-sm text-destructive">{testStorageMutation.error.message}</p>
-            ) : null}
-            {storageMutation.error ? (
-              <p className="text-sm text-destructive">{storageMutation.error.message}</p>
-            ) : null}
-          </form>
-        </Panel>
-        <Panel title="SMTP">
-          <form
-            className="space-y-3"
-            onSubmit={smtpForm.handleSubmit((values) => smtpMutation.mutate(values))}
-          >
-            <TextInput label="SMTP host" {...smtpForm.register("host")} />
-            <TextInput
-              label="SMTP port"
-              type="number"
-              step="1"
-              {...smtpForm.register("port", { valueAsNumber: true })}
-            />
-            <TextInput label="SMTP user" {...smtpForm.register("user")} />
-            <TextInput
-              label="SMTP password"
-              type="password"
-              {...smtpForm.register("password")}
-            />
-            <TextInput label="From email" type="email" {...smtpForm.register("from")} />
-            <CheckboxInput label="Use TLS" {...smtpForm.register("secure")} />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={smtpForm.handleSubmit((values) =>
-                  testSmtpMutation.mutate(values)
-                )}
-              >
-                Test SMTP
+            </form>
+          </Panel>
+          <Panel title="Invites">
+            <form
+              className="space-y-3"
+              onSubmit={inviteForm.handleSubmit((values) =>
+                inviteMutation.mutate(values)
+              )}
+            >
+              <TextInput
+                label="Email"
+                type="email"
+                {...inviteForm.register("email")}
+              />
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-muted-foreground">Role</span>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3"
+                  {...inviteForm.register("role")}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <Button size="sm" type="submit">
+                <UserPlusIcon className="size-4" />
+                Create invite
               </Button>
-              <Button size="sm" type="submit">Save SMTP</Button>
+            </form>
+            <div className="mt-4 divide-y divide-border">
+              {(invitesData?.invites ?? []).slice(0, 8).map((invite) => (
+                <div
+                  key={invite.id}
+                  className="flex items-center justify-between gap-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{invite.email}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {invite.role}
+                      {invite.acceptedAt ? ", accepted" : ""}
+                      {invite.revokedAt ? ", revoked" : ""}
+                    </div>
+                  </div>
+                  {!invite.acceptedAt && !invite.revokedAt ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => revokeInviteMutation.mutate(invite.id)}
+                    >
+                      Revoke
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
             </div>
-            {testSmtpMutation.error ? (
-              <p className="text-sm text-destructive">{testSmtpMutation.error.message}</p>
-            ) : null}
-            {smtpMutation.error ? (
-              <p className="text-sm text-destructive">{smtpMutation.error.message}</p>
-            ) : null}
-          </form>
+          </Panel>
+          <Panel title="Storage">
+            <form
+              className="space-y-3"
+              onSubmit={storageForm.handleSubmit((values) =>
+                storageMutation.mutate(values)
+              )}
+            >
+              <TextInput
+                label="S3 endpoint"
+                {...storageForm.register("endpoint")}
+              />
+              <TextInput label="Region" {...storageForm.register("region")} />
+              <TextInput label="Bucket" {...storageForm.register("bucket")} />
+              <TextInput
+                label="Access key ID"
+                {...storageForm.register("accessKeyId")}
+              />
+              <TextInput
+                label="Secret access key"
+                type="password"
+                {...storageForm.register("secretAccessKey")}
+              />
+              <TextInput
+                label="Public CDN base URL"
+                {...storageForm.register("publicBaseUrl")}
+              />
+              <CheckboxInput
+                label="Force path-style URLs"
+                {...storageForm.register("forcePathStyle")}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={storageForm.handleSubmit((values) =>
+                    testStorageMutation.mutate(values)
+                  )}
+                >
+                  Test storage
+                </Button>
+                <Button size="sm" type="submit">
+                  Save storage
+                </Button>
+              </div>
+              {testStorageMutation.error ? (
+                <p className="text-destructive text-sm">
+                  {testStorageMutation.error.message}
+                </p>
+              ) : null}
+              {storageMutation.error ? (
+                <p className="text-destructive text-sm">
+                  {storageMutation.error.message}
+                </p>
+              ) : null}
+            </form>
+          </Panel>
+          <Panel title="SMTP">
+            <form
+              className="space-y-3"
+              onSubmit={smtpForm.handleSubmit((values) =>
+                smtpMutation.mutate(values)
+              )}
+            >
+              <TextInput label="SMTP host" {...smtpForm.register("host")} />
+              <TextInput
+                label="SMTP port"
+                type="number"
+                step="1"
+                {...smtpForm.register("port", { valueAsNumber: true })}
+              />
+              <TextInput label="SMTP user" {...smtpForm.register("user")} />
+              <TextInput
+                label="SMTP password"
+                type="password"
+                {...smtpForm.register("password")}
+              />
+              <TextInput
+                label="From email"
+                type="email"
+                {...smtpForm.register("from")}
+              />
+              <CheckboxInput label="Use TLS" {...smtpForm.register("secure")} />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={smtpForm.handleSubmit((values) =>
+                    testSmtpMutation.mutate(values)
+                  )}
+                >
+                  Test SMTP
+                </Button>
+                <Button size="sm" type="submit">
+                  Save SMTP
+                </Button>
+              </div>
+              {testSmtpMutation.error ? (
+                <p className="text-destructive text-sm">
+                  {testSmtpMutation.error.message}
+                </p>
+              ) : null}
+              {smtpMutation.error ? (
+                <p className="text-destructive text-sm">
+                  {smtpMutation.error.message}
+                </p>
+              ) : null}
+            </form>
+          </Panel>
+        </div>
+        <Panel title="Diagnostics">
+          <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
+            {JSON.stringify(diagnosticsData ?? {}, null, 2)}
+          </pre>
         </Panel>
-      </div>
-      <Panel title="Diagnostics">
-        <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-          {JSON.stringify(diagnosticsData ?? {}, null, 2)}
-        </pre>
-      </Panel>
       </div>
     </>
   )
@@ -2331,9 +2647,13 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
     mutationFn: (values: { name: string }) =>
       apiFetch("/profile", {
         method: "PATCH",
-        body: JSON.stringify({ name: values.name, mutationId: crypto.randomUUID() }),
+        body: JSON.stringify({
+          name: values.name,
+          mutationId: crypto.randomUUID(),
+        }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["current-user"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["current-user"] }),
   })
   const usernameMutation = useMutation({
     mutationFn: (username: string) =>
@@ -2341,7 +2661,8 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
         method: "POST",
         body: JSON.stringify({ username, mutationId: crypto.randomUUID() }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["current-user"] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["current-user"] }),
   })
   const avatarMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -2362,7 +2683,7 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
         body: file,
       })
       if (!uploadResponse.ok) throw new Error("Avatar upload failed")
-      return apiFetch("/profile/avatar/" + session.uploadSessionId + "/complete", {
+      return apiFetch(`/profile/avatar/${session.uploadSessionId}/complete`, {
         method: "POST",
         body: JSON.stringify({ mutationId: crypto.randomUUID() }),
       })
@@ -2375,12 +2696,14 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
   return (
     <Panel title="Profile">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex size-12 items-center justify-center rounded-full bg-muted text-sm font-medium">
+        <div className="flex size-12 items-center justify-center rounded-full bg-muted font-medium text-sm">
           {user.name.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0">
           <div className="truncate font-medium">{user.name}</div>
-          <div className="truncate text-sm text-muted-foreground">{user.email}</div>
+          <div className="truncate text-muted-foreground text-sm">
+            {user.email}
+          </div>
         </div>
       </div>
       <form
@@ -2392,10 +2715,14 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
       </form>
       <form
         className="mt-6 grid max-w-md gap-3"
-        onSubmit={form.handleSubmit((values) => usernameMutation.mutate(values.username))}
+        onSubmit={form.handleSubmit((values) =>
+          usernameMutation.mutate(values.username)
+        )}
       >
         <TextInput label="Username" {...form.register("username")} />
-        <Button variant="outline" type="submit">Change username</Button>
+        <Button variant="outline" type="submit">
+          Change username
+        </Button>
       </form>
       <div className="mt-6 grid max-w-md gap-3">
         <Label htmlFor="profile-avatar-input">Avatar</Label>
@@ -2422,7 +2749,9 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
           Upload avatar
         </Button>
         {avatarMutation.error ? (
-          <p className="text-sm text-destructive">{avatarMutation.error.message}</p>
+          <p className="text-destructive text-sm">
+            {avatarMutation.error.message}
+          </p>
         ) : null}
       </div>
     </Panel>
@@ -2446,9 +2775,9 @@ function NodeListPanel({
 }) {
   return (
     <div className="mx-auto max-w-6xl">
-      <h1 className="mb-4 font-heading text-2xl font-semibold">{title}</h1>
+      <h1 className="mb-4 font-heading font-semibold text-2xl">{title}</h1>
       {nodes.length === 0 ? (
-        <div className="flex min-h-72 items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
+        <div className="flex min-h-72 items-center justify-center rounded-md border border-border border-dashed text-muted-foreground text-sm">
           {emptyLabel}
         </div>
       ) : (
@@ -2473,7 +2802,13 @@ function NodeListPanel({
   )
 }
 
-function Panel({ children, title }: { children: React.ReactNode; title: string }) {
+function Panel({
+  children,
+  title,
+}: {
+  children: React.ReactNode
+  title: string
+}) {
   return (
     <Card className="rounded-md shadow-none">
       <CardHeader>
@@ -2499,11 +2834,7 @@ function TextInput({
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={inputId}>{label}</Label>
-      <Input
-        id={inputId}
-        ref={ref}
-        {...props}
-      />
+      <Input id={inputId} ref={ref} {...props} />
     </div>
   )
 }
@@ -2518,7 +2849,12 @@ function CheckboxInput({
 }) {
   return (
     <Label className="flex items-center gap-2 text-sm">
-      <input ref={ref} className="size-4 accent-current" type="checkbox" {...props} />
+      <input
+        ref={ref}
+        className="size-4 accent-current"
+        type="checkbox"
+        {...props}
+      />
       <span>{label}</span>
     </Label>
   )
@@ -2544,15 +2880,20 @@ function useDetailsPanel(node: ShelfNode | null) {
   })
   const { data: textPreviewData } = useQuery({
     queryKey: ["text-preview", node?.id, node?.revision],
-    queryFn: () => apiFetch<{ text: string }>(`/nodes/${node?.id}/preview/text`),
+    queryFn: () =>
+      apiFetch<{ text: string }>(`/nodes/${node?.id}/preview/text`),
     enabled:
       Boolean(node) &&
       node?.type === "file" &&
-      (node.mimeType?.startsWith("text/") || node.mimeType === "application/json") &&
+      (node.mimeType?.startsWith("text/") ||
+        node.mimeType === "application/json") &&
       node.sizeBytes <= 1024 * 1024,
     retry: false,
   })
-  const shareForm = useForm<{ username: string; permission: "viewer" | "editor" }>({
+  const shareForm = useForm<{
+    username: string
+    permission: "viewer" | "editor"
+  }>({
     defaultValues: { username: "", permission: "viewer" },
   })
   const publicLinkForm = useForm<{
@@ -2563,7 +2904,10 @@ function useDetailsPanel(node: ShelfNode | null) {
     defaultValues: { password: "", maxDownloads: "", expiresAt: "" },
   })
   const shareMutation = useMutation({
-    mutationFn: (values: { username: string; permission: "viewer" | "editor" }) => {
+    mutationFn: (values: {
+      username: string
+      permission: "viewer" | "editor"
+    }) => {
       if (!node) throw new Error("Select a file or folder")
       return apiFetch("/shares", {
         method: "POST",
@@ -2579,7 +2923,9 @@ function useDetailsPanel(node: ShelfNode | null) {
       shareForm.reset({ username: "", permission: "viewer" })
       toast.success("Share created")
       await queryClient.invalidateQueries({ queryKey: ["shared-with-me"] })
-      await queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] })
+      await queryClient.invalidateQueries({
+        queryKey: ["node-shares", node?.id],
+      })
     },
   })
   const lookupUserMutation = useMutation({
@@ -2589,11 +2935,16 @@ function useDetailsPanel(node: ShelfNode | null) {
       ),
     onSuccess: (result) => {
       toast.success(`Found ${result.user.name} (@${result.user.username})`)
-      void queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] })
+      void queryClient.invalidateQueries({
+        queryKey: ["node-shares", node?.id],
+      })
     },
   })
   const updateShareMutation = useMutation({
-    mutationFn: (input: { userId: string; permission: "viewer" | "editor" }) => {
+    mutationFn: (input: {
+      userId: string
+      permission: "viewer" | "editor"
+    }) => {
       if (!node) throw new Error("Select a file or folder")
       return apiFetch(`/shares/${node.id}/${input.userId}`, {
         method: "PATCH",
@@ -2603,7 +2954,8 @@ function useDetailsPanel(node: ShelfNode | null) {
         }),
       })
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] }),
   })
   const revokeShareMutation = useMutation({
     mutationFn: (userId: string) => {
@@ -2615,11 +2967,17 @@ function useDetailsPanel(node: ShelfNode | null) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["shared-with-me"] })
-      await queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] })
+      await queryClient.invalidateQueries({
+        queryKey: ["node-shares", node?.id],
+      })
     },
   })
   const publicLinkMutation = useMutation({
-    mutationFn: (values: { password: string; maxDownloads: string; expiresAt: string }) => {
+    mutationFn: (values: {
+      password: string
+      maxDownloads: string
+      expiresAt: string
+    }) => {
       if (!node) throw new Error("Select a file or folder")
       return apiFetch<{ id: string; token: string }>("/public-links", {
         method: "POST",
@@ -2627,8 +2985,12 @@ function useDetailsPanel(node: ShelfNode | null) {
           mutationId: crypto.randomUUID(),
           nodeId: node.id,
           password: values.password || undefined,
-          maxDownloads: values.maxDownloads ? Number(values.maxDownloads) : undefined,
-          expiresAt: values.expiresAt ? new Date(values.expiresAt).toISOString() : undefined,
+          maxDownloads: values.maxDownloads
+            ? Number(values.maxDownloads)
+            : undefined,
+          expiresAt: values.expiresAt
+            ? new Date(values.expiresAt).toISOString()
+            : undefined,
         }),
       })
     },
@@ -2728,9 +3090,12 @@ function useDetailsPanel(node: ShelfNode | null) {
 
   return (
     <>
-      <Dialog open={Boolean(nodeDialog)} onOpenChange={(open) => {
-        if (!open) setNodeDialog(null)
-      }}>
+      <Dialog
+        open={Boolean(nodeDialog)}
+        onOpenChange={(open) => {
+          if (!open) setNodeDialog(null)
+        }}
+      >
         <DialogContent>
           <form
             className="flex flex-col gap-4"
@@ -2765,11 +3130,13 @@ function useDetailsPanel(node: ShelfNode | null) {
               <DialogDescription>
                 {nodeDialog?.type === "move"
                   ? "Enter a destination folder ID, or leave it blank for root."
-                  : node?.name ?? "Selected item"}
+                  : (node?.name ?? "Selected item")}
               </DialogDescription>
             </DialogHeader>
             <TextInput
-              label={nodeDialog?.type === "move" ? "Destination folder ID" : "Name"}
+              label={
+                nodeDialog?.type === "move" ? "Destination folder ID" : "Name"
+              }
               onChange={(event) =>
                 setNodeDialog((current) =>
                   current ? { ...current, value: event.target.value } : current
@@ -2779,7 +3146,11 @@ function useDetailsPanel(node: ShelfNode | null) {
               value={nodeDialog?.value ?? ""}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setNodeDialog(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNodeDialog(null)}
+              >
                 Cancel
               </Button>
               <Button type="submit">Save</Button>
@@ -2787,227 +3158,249 @@ function useDetailsPanel(node: ShelfNode | null) {
           </form>
         </DialogContent>
       </Dialog>
-      <div className="border-b border-border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold">Details</h2>
-        <Button aria-label="Close details" variant="ghost" size="icon-xs">
-          <XMarkIcon className="size-4" />
-        </Button>
-      </div>
-
-      {node ? (
-        <div className="space-y-4 text-sm">
-          <div className="flex items-center gap-3">
-            {node.type === "folder" ? (
-              <FolderIcon className="size-8 text-primary" />
-            ) : (
-              <DocumentIcon className="size-8 text-muted-foreground" />
-            )}
-            <div className="min-w-0">
-              <div className="truncate font-medium">{node.name}</div>
-              <div className="text-xs text-muted-foreground">{node.type}</div>
-            </div>
-          </div>
-          <dl className="space-y-2 text-xs">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Size</dt>
-              <dd>{formatBytes(node.sizeBytes)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Revision</dt>
-              <dd>{node.revision}</dd>
-            </div>
-          </dl>
-          {node.type === "file" ? (
-            textPreviewData ? (
-              <pre className="max-h-48 overflow-auto rounded-md border border-border bg-muted p-3 text-xs whitespace-pre-wrap">
-                {textPreviewData.text}
-              </pre>
-            ) : node.mimeType?.startsWith("image/") ? (
-              <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-                Image preview will appear after thumbnail generation.
-              </div>
-            ) : node.mimeType === "application/pdf" ? (
-              <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-                PDF preview is not rendered in v1.
-              </div>
-            ) : node.mimeType?.startsWith("video/") || node.mimeType?.startsWith("audio/") ? (
-              <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-                Media playback preview is not rendered in v1.
-              </div>
-            ) : null
-          ) : null}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setNodeDialog({ type: "rename", value: node.name })
-              }}
-            >
-              Rename
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setNodeDialog({ type: "move", value: node.parentId ?? "" })
-              }}
-            >
-              Move
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setNodeDialog({ type: "copy", value: `${node.name} copy` })
-              }}
-            >
-              Copy
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => trashMutation.mutate()}
-            >
-              <TrashIcon className="size-4" />
-              Trash
-            </Button>
-          </div>
-          {node.type === "file" ? (
-            <Button
-              className="w-full"
-              variant="outline"
-              size="sm"
-              onClick={() => downloadMutation.mutate()}
-            >
-              <ArrowDownTrayIcon className="size-4" />
-              Download
-            </Button>
-          ) : (
-            <Button
-              className="w-full"
-              variant="outline"
-              size="sm"
-              onClick={() => zipDownloadMutation.mutate()}
-            >
-              <ArrowDownTrayIcon className="size-4" />
-              Download ZIP
-            </Button>
-          )}
-          <form
-            className="space-y-2 rounded-md border border-border p-3"
-            onSubmit={shareForm.handleSubmit((values) => shareMutation.mutate(values))}
-          >
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <ShareIcon className="size-4" />
-              Share by username
-            </div>
-            <TextInput label="Username" {...shareForm.register("username")} />
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => lookupUserMutation.mutate(shareForm.getValues("username"))}
-            >
-              Check user
-            </Button>
-            {lookupUserMutation.error ? (
-              <p className="text-xs text-destructive">{lookupUserMutation.error.message}</p>
-            ) : null}
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-muted-foreground">Permission</span>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3"
-                {...shareForm.register("permission")}
-              >
-                <option value="viewer">Viewer</option>
-                <option value="editor">Editor</option>
-              </select>
-            </label>
-            <Button size="sm" type="submit">Create share</Button>
-            {shareMutation.error ? (
-              <p className="text-xs text-destructive">{shareMutation.error.message}</p>
-            ) : null}
-            {(sharesData?.shares ?? []).length > 0 ? (
-              <div className="divide-y divide-border pt-2">
-                {(sharesData?.shares ?? []).map((share) => (
-                  <div
-                    key={share.userId}
-                    className="flex items-center justify-between gap-2 py-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{share.username}</div>
-                      <div className="truncate text-xs text-muted-foreground">{share.email}</div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <select
-                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                        value={share.permission}
-                        onChange={(event) =>
-                          updateShareMutation.mutate({
-                            userId: share.userId,
-                            permission: event.target.value as "viewer" | "editor",
-                          })
-                        }
-                      >
-                        <option value="viewer">Viewer</option>
-                        <option value="editor">Editor</option>
-                      </select>
-                      <Button
-                        aria-label="Revoke share"
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => revokeShareMutation.mutate(share.userId)}
-                        title="Revoke share"
-                      >
-                        <XMarkIcon className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </form>
-          <form
-            className="space-y-2 rounded-md border border-border p-3"
-            onSubmit={publicLinkForm.handleSubmit((values) =>
-              publicLinkMutation.mutate(values)
-            )}
-          >
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <GlobeAltIcon className="size-4" />
-              Public access
-            </div>
-            <TextInput
-              label="Password"
-              type="password"
-              {...publicLinkForm.register("password")}
-            />
-            <TextInput
-              label="Max downloads"
-              type="number"
-              {...publicLinkForm.register("maxDownloads")}
-            />
-            <TextInput
-              label="Expires at"
-              type="datetime-local"
-              {...publicLinkForm.register("expiresAt")}
-            />
-            <Button size="sm" type="submit">
-              <LinkIcon className="size-4" />
-              Create link
-            </Button>
-            {publicLinkMutation.error ? (
-              <p className="text-xs text-destructive">{publicLinkMutation.error.message}</p>
-            ) : null}
-          </form>
+      <div className="border-border border-b p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-heading font-semibold text-sm">Details</h2>
+          <Button aria-label="Close details" variant="ghost" size="icon-xs">
+            <XMarkIcon className="size-4" />
+          </Button>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Select a file or folder to view metadata, sharing, and public link controls.
-        </p>
-      )}
+
+        {node ? (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-center gap-3">
+              {node.type === "folder" ? (
+                <FolderIcon className="size-8 text-primary" />
+              ) : (
+                <DocumentIcon className="size-8 text-muted-foreground" />
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-medium">{node.name}</div>
+                <div className="text-muted-foreground text-xs">{node.type}</div>
+              </div>
+            </div>
+            <dl className="space-y-2 text-xs">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Size</dt>
+                <dd>{formatBytes(node.sizeBytes)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Revision</dt>
+                <dd>{node.revision}</dd>
+              </div>
+            </dl>
+            {node.type === "file" ? (
+              textPreviewData ? (
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted p-3 text-xs">
+                  {textPreviewData.text}
+                </pre>
+              ) : node.mimeType?.startsWith("image/") ? (
+                <div className="rounded-md border border-border p-3 text-muted-foreground text-xs">
+                  Image preview will appear after thumbnail generation.
+                </div>
+              ) : node.mimeType === "application/pdf" ? (
+                <div className="rounded-md border border-border p-3 text-muted-foreground text-xs">
+                  PDF preview is not rendered in v1.
+                </div>
+              ) : node.mimeType?.startsWith("video/") ||
+                node.mimeType?.startsWith("audio/") ? (
+                <div className="rounded-md border border-border p-3 text-muted-foreground text-xs">
+                  Media playback preview is not rendered in v1.
+                </div>
+              ) : null
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNodeDialog({ type: "rename", value: node.name })
+                }}
+              >
+                Rename
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNodeDialog({ type: "move", value: node.parentId ?? "" })
+                }}
+              >
+                Move
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNodeDialog({ type: "copy", value: `${node.name} copy` })
+                }}
+              >
+                Copy
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => trashMutation.mutate()}
+              >
+                <TrashIcon className="size-4" />
+                Trash
+              </Button>
+            </div>
+            {node.type === "file" ? (
+              <Button
+                className="w-full"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadMutation.mutate()}
+              >
+                <ArrowDownTrayIcon className="size-4" />
+                Download
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                variant="outline"
+                size="sm"
+                onClick={() => zipDownloadMutation.mutate()}
+              >
+                <ArrowDownTrayIcon className="size-4" />
+                Download ZIP
+              </Button>
+            )}
+            <form
+              className="space-y-2 rounded-md border border-border p-3"
+              onSubmit={shareForm.handleSubmit((values) =>
+                shareMutation.mutate(values)
+              )}
+            >
+              <div className="flex items-center gap-2 font-medium text-muted-foreground text-xs">
+                <ShareIcon className="size-4" />
+                Share by username
+              </div>
+              <TextInput label="Username" {...shareForm.register("username")} />
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() =>
+                  lookupUserMutation.mutate(shareForm.getValues("username"))
+                }
+              >
+                Check user
+              </Button>
+              {lookupUserMutation.error ? (
+                <p className="text-destructive text-xs">
+                  {lookupUserMutation.error.message}
+                </p>
+              ) : null}
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-muted-foreground">Permission</span>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3"
+                  {...shareForm.register("permission")}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                </select>
+              </label>
+              <Button size="sm" type="submit">
+                Create share
+              </Button>
+              {shareMutation.error ? (
+                <p className="text-destructive text-xs">
+                  {shareMutation.error.message}
+                </p>
+              ) : null}
+              {(sharesData?.shares ?? []).length > 0 ? (
+                <div className="divide-y divide-border pt-2">
+                  {(sharesData?.shares ?? []).map((share) => (
+                    <div
+                      key={share.userId}
+                      className="flex items-center justify-between gap-2 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-sm">
+                          {share.username}
+                        </div>
+                        <div className="truncate text-muted-foreground text-xs">
+                          {share.email}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <select
+                          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          value={share.permission}
+                          onChange={(event) =>
+                            updateShareMutation.mutate({
+                              userId: share.userId,
+                              permission: event.target.value as
+                                | "viewer"
+                                | "editor",
+                            })
+                          }
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                        </select>
+                        <Button
+                          aria-label="Revoke share"
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() =>
+                            revokeShareMutation.mutate(share.userId)
+                          }
+                          title="Revoke share"
+                        >
+                          <XMarkIcon className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </form>
+            <form
+              className="space-y-2 rounded-md border border-border p-3"
+              onSubmit={publicLinkForm.handleSubmit((values) =>
+                publicLinkMutation.mutate(values)
+              )}
+            >
+              <div className="flex items-center gap-2 font-medium text-muted-foreground text-xs">
+                <GlobeAltIcon className="size-4" />
+                Public access
+              </div>
+              <TextInput
+                label="Password"
+                type="password"
+                {...publicLinkForm.register("password")}
+              />
+              <TextInput
+                label="Max downloads"
+                type="number"
+                {...publicLinkForm.register("maxDownloads")}
+              />
+              <TextInput
+                label="Expires at"
+                type="datetime-local"
+                {...publicLinkForm.register("expiresAt")}
+              />
+              <Button size="sm" type="submit">
+                <LinkIcon className="size-4" />
+                Create link
+              </Button>
+              {publicLinkMutation.error ? (
+                <p className="text-destructive text-xs">
+                  {publicLinkMutation.error.message}
+                </p>
+              ) : null}
+            </form>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            Select a file or folder to view metadata, sharing, and public link
+            controls.
+          </p>
+        )}
       </div>
     </>
   )
@@ -3027,18 +3420,22 @@ function UploadDrawer({
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold">Upload queue</h2>
-        <span className="text-xs text-muted-foreground">{Math.round(progress * 100)}%</span>
+        <h2 className="font-heading font-semibold text-sm">Upload queue</h2>
+        <span className="text-muted-foreground text-xs">
+          {Math.round(progress * 100)}%
+        </span>
       </div>
       <Progress className="mb-3" value={Math.round(progress * 100)} />
       <div className="space-y-2">
         {tasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active uploads.</p>
+          <p className="text-muted-foreground text-sm">No active uploads.</p>
         ) : (
           tasks.slice(-6).map((task) => (
             <div key={task.id} className="rounded-md border border-border p-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 truncate text-sm font-medium">{task.file.name}</div>
+                <div className="min-w-0 truncate font-medium text-sm">
+                  {task.file.name}
+                </div>
                 <div className="flex gap-1">
                   {task.status === "failed" ? (
                     <Button
@@ -3062,10 +3459,15 @@ function UploadDrawer({
                   ) : null}
                 </div>
               </div>
-              <Progress className="mt-2" value={Math.round(task.progress * 100)} />
-              <div className="mt-1 text-xs text-muted-foreground">
+              <Progress
+                className="mt-2"
+                value={Math.round(task.progress * 100)}
+              />
+              <div className="mt-1 text-muted-foreground text-xs">
                 {task.status}
-                {task.etaSeconds ? `, ${Math.ceil(task.etaSeconds)}s remaining` : ""}
+                {task.etaSeconds
+                  ? `, ${Math.ceil(task.etaSeconds)}s remaining`
+                  : ""}
               </div>
             </div>
           ))
@@ -3078,7 +3480,10 @@ function UploadDrawer({
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B"
   const units = ["B", "KB", "MB", "GB", "TB"]
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
@@ -3089,7 +3494,10 @@ interface DroppedEntry {
 }
 
 interface DroppedFileEntry extends DroppedEntry {
-  file: (callback: (file: File) => void, errorCallback?: (error: DOMException) => void) => void
+  file: (
+    callback: (file: File) => void,
+    errorCallback?: (error: DOMException) => void
+  ) => void
 }
 
 interface DroppedDirectoryEntry extends DroppedEntry {
@@ -3115,10 +3523,15 @@ async function extractDroppedFiles(dataTransfer: DataTransfer) {
           | undefined
     )
     .filter((entry): entry is DroppedEntry => Boolean(entry))
-  return (await Promise.all(entries.map((entry) => readDroppedEntry(entry, "")))).flat()
+  return (
+    await Promise.all(entries.map((entry) => readDroppedEntry(entry, "")))
+  ).flat()
 }
 
-async function readDroppedEntry(entry: DroppedEntry, parentPath: string): Promise<File[]> {
+async function readDroppedEntry(
+  entry: DroppedEntry,
+  parentPath: string
+): Promise<File[]> {
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name
   if (entry.isFile) {
     const file = await new Promise<File>((resolve, reject) => {

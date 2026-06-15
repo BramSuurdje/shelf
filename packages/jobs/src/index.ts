@@ -1,12 +1,13 @@
-import { Queue, Worker } from "bullmq"
+import { loadEnv } from "@shelf/config"
 
 import type { ConnectionOptions } from "bullmq"
-
-import { loadEnv } from "@shelf/config"
+import { Queue, Worker } from "bullmq"
 
 const env = loadEnv()
 
-function redisConnectionOptions(maxRetriesPerRequest: number | null): ConnectionOptions {
+function redisConnectionOptions(
+  maxRetriesPerRequest: number | null
+): ConnectionOptions {
   const redisUrl = new URL(env.REDIS_URL)
   const dbPath = redisUrl.pathname.replace("/", "")
 
@@ -43,10 +44,16 @@ export const maintenanceQueue = new Queue("shelf-maintenance", {
 })
 
 export function createWorker(
-  processor: ConstructorParameters<typeof Worker<ShelfJobName, unknown, ShelfJobName>>[1]
+  processor: ConstructorParameters<
+    typeof Worker<ShelfJobName, unknown, ShelfJobName>
+  >[1]
 ) {
-  return new Worker<ShelfJobName, unknown, ShelfJobName>("shelf-maintenance", processor, {
-    connection: redisConnectionOptions(null),
-    concurrency: env.WORKER_CONCURRENCY,
-  })
+  return new Worker<ShelfJobName, unknown, ShelfJobName>(
+    "shelf-maintenance",
+    processor,
+    {
+      connection: redisConnectionOptions(null),
+      concurrency: env.WORKER_CONCURRENCY,
+    }
+  )
 }

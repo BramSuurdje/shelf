@@ -26,13 +26,16 @@ function staticPath(pathname: string) {
 
 async function serveStatic(pathname: string) {
   const filePath = staticPath(pathname)
-  const resolvedPath = existsSync(filePath) ? filePath : join(root, "index.html")
+  const resolvedPath = existsSync(filePath)
+    ? filePath
+    : join(root, "index.html")
   const file = Bun.file(resolvedPath)
   const extension = extname(resolvedPath)
   return new Response(file, {
     headers: {
-      "cache-control":
-        resolvedPath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable",
+      "cache-control": resolvedPath.endsWith("index.html")
+        ? "no-cache"
+        : "public, max-age=31536000, immutable",
       "content-type": contentTypes[extension] ?? "application/octet-stream",
     },
   })
@@ -42,7 +45,11 @@ Bun.serve({
   port,
   async fetch(request) {
     const url = new URL(request.url)
-    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/healthz") || url.pathname.startsWith("/readyz")) {
+    if (
+      url.pathname.startsWith("/api/") ||
+      url.pathname.startsWith("/healthz") ||
+      url.pathname.startsWith("/readyz")
+    ) {
       const upstream = new URL(url.pathname + url.search, apiBaseUrl)
       try {
         return await fetch(upstream, request)

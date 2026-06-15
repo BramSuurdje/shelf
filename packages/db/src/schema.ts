@@ -57,8 +57,12 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     username: text("username").notNull().unique(),
     displayUsername: text("display_username"),
     usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
@@ -71,7 +75,10 @@ export const user = pgTable(
     onboardingCompletedAt: timestamp("onboarding_completed_at", {
       withTimezone: true,
     }),
-    preferences: jsonb("preferences").$type<Record<string, unknown>>().notNull().default({}),
+    preferences: jsonb("preferences")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
   },
   (table) => ({
     usernameIdx: index("user_username_idx").on(table.username),
@@ -83,8 +90,12 @@ export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   userId: text("user_id")
@@ -102,14 +113,20 @@ export const account = pgTable("account", {
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", {
+    withTimezone: true,
+  }),
   refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
     withTimezone: true,
   }),
   scope: text("scope"),
   password: text("password"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const verification = pgTable("verification", {
@@ -117,8 +134,12 @@ export const verification = pgTable("verification", {
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const usernameHistory = pgTable(
@@ -129,11 +150,17 @@ export const usernameHistory = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     username: text("username").notNull(),
-    reservedUntil: timestamp("reserved_until", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    reservedUntil: timestamp("reserved_until", {
+      withTimezone: true,
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
-    usernameUnique: unique("username_history_username_unique").on(table.username),
+    usernameUnique: unique("username_history_username_unique").on(
+      table.username
+    ),
   })
 )
 
@@ -144,7 +171,9 @@ export const devices = pgTable("devices", {
     .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const nodes = pgTable(
@@ -163,17 +192,19 @@ export const nodes = pgTable(
     mimeType: text("mime_type"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     tombstoneAt: timestamp("tombstone_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     ownerIdx: index("nodes_owner_idx").on(table.ownerId),
     parentIdx: index("nodes_parent_idx").on(table.parentId),
-    siblingUnique: uniqueIndex("nodes_owner_parent_name_active_unique").on(
-      table.ownerId,
-      sql`coalesce(${table.parentId}, '')`,
-      table.name
-    ).where(sql`${table.deletedAt} is null`),
+    siblingUnique: uniqueIndex("nodes_owner_parent_name_active_unique")
+      .on(table.ownerId, sql`coalesce(${table.parentId}, '')`, table.name)
+      .where(sql`${table.deletedAt} is null`),
   })
 )
 
@@ -196,7 +227,9 @@ export const fileVersions = pgTable(
     scanStatus: scanStatusEnum("scan_status").notNull().default("not_required"),
     thumbnailObjectKey: text("thumbnail_object_key"),
     thumbnailStatus: text("thumbnail_status").notNull().default("not_required"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => ({
@@ -218,7 +251,9 @@ export const nodePermissions = pgTable(
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.nodeId, table.userId] }),
@@ -241,8 +276,12 @@ export const publicLinks = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     maxDownloads: integer("max_downloads"),
     downloadCount: integer("download_count").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     ownerIdx: index("public_links_owner_idx").on(table.ownerId),
@@ -272,8 +311,12 @@ export const uploadSessions = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     mutationId: text("mutation_id").notNull(),
     deviceId: text("device_id"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     mutationUnique: unique("upload_sessions_owner_mutation_unique").on(
@@ -301,7 +344,9 @@ export const avatarUploadSessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     mutationId: text("mutation_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     mutationUnique: unique("avatar_upload_sessions_user_mutation_unique").on(
@@ -342,7 +387,9 @@ export const nodeEvents = pgTable(
     mutationId: text("mutation_id").notNull(),
     type: text("type").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     cursorIdx: index("node_events_cursor_idx").on(table.cursor),
@@ -360,7 +407,9 @@ export const quotas = pgTable("quotas", {
     .references(() => user.id, { onDelete: "cascade" }),
   quotaBytes: bigint("quota_bytes", { mode: "number" }).notNull(),
   updatedByUserId: text("updated_by_user_id").references(() => user.id),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const storageUsage = pgTable("storage_usage", {
@@ -368,10 +417,14 @@ export const storageUsage = pgTable("storage_usage", {
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   usedBytes: bigint("used_bytes", { mode: "number" }).notNull().default(0),
-  reservedBytes: bigint("reserved_bytes", { mode: "number" }).notNull().default(0),
+  reservedBytes: bigint("reserved_bytes", { mode: "number" })
+    .notNull()
+    .default(0),
   trashBytes: bigint("trash_bytes", { mode: "number" }).notNull().default(0),
   recalculatedAt: timestamp("recalculated_at", { withTimezone: true }),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const appSettings = pgTable("app_settings", {
@@ -379,7 +432,9 @@ export const appSettings = pgTable("app_settings", {
   value: jsonb("value").$type<unknown>(),
   encrypted: boolean("encrypted").notNull().default(false),
   updatedByUserId: text("updated_by_user_id").references(() => user.id),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const auditEvents = pgTable(
@@ -393,7 +448,9 @@ export const auditEvents = pgTable(
     ipHash: text("ip_hash"),
     userAgentHash: text("user_agent_hash"),
     data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     typeIdx: index("audit_events_type_idx").on(table.type),
@@ -415,7 +472,9 @@ export const invites = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     emailIdx: index("invites_email_idx").on(table.email),
@@ -433,7 +492,9 @@ export const publicLinkAccessEvents = pgTable("public_link_access_events", {
   outcome: text("outcome").notNull(),
   ipHash: text("ip_hash"),
   userAgentHash: text("user_agent_hash"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const mutationReceipts = pgTable(
@@ -444,7 +505,9 @@ export const mutationReceipts = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     mutationId: text("mutation_id").notNull(),
     response: jsonb("response").$type<Record<string, unknown>>().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.userId, table.mutationId] }),

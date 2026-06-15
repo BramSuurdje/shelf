@@ -1,9 +1,8 @@
-import { Hono } from "hono"
-import Redis from "ioredis"
-
 import { loadEnv } from "@shelf/config"
 import { dbHealthCheck, loadS3SettingsFromDb } from "@shelf/db"
 import { testS3Connection } from "@shelf/storage"
+import { Hono } from "hono"
+import Redis from "ioredis"
 
 import type { ApiVariables } from "../context"
 import { ok } from "../http"
@@ -43,5 +42,7 @@ healthRoutes.get("/readyz", async (c) => {
 })
 
 healthRoutes.get("/metrics", (c) =>
-  c.text(`# HELP shelf_up Shelf API availability\n# TYPE shelf_up gauge\nshelf_up 1\n`)
+  c.text(
+    `# HELP shelf_up Shelf API availability\n# TYPE shelf_up gauge\nshelf_up 1\n`
+  )
 )

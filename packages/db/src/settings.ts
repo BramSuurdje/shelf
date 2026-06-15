@@ -1,6 +1,5 @@
-import { eq } from "drizzle-orm"
-
 import { openSecret } from "@shelf/config"
+import { eq } from "drizzle-orm"
 
 import { db } from "./index"
 import { appSettings } from "./schema"
@@ -16,7 +15,10 @@ export interface DbS3Settings {
 }
 
 export async function readAppSetting<T>(key: string, fallback: T): Promise<T> {
-  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key))
+  const [row] = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
   return (row?.value as T | undefined) ?? fallback
 }
 

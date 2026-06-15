@@ -1,11 +1,10 @@
+import { loadEnv } from "@shelf/config"
+import { logger } from "@shelf/logger"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { secureHeaders } from "hono/secure-headers"
 
-import { loadEnv } from "@shelf/config"
-import { logger } from "@shelf/logger"
-
-import { requestContext, type ApiVariables } from "./context"
+import { type ApiVariables, requestContext } from "./context"
 import { fail, HttpError } from "./http"
 import { healthRoutes } from "./routes/health"
 import { v1Routes } from "./routes/v1"

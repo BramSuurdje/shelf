@@ -1,7 +1,6 @@
+import { loadEnv } from "@shelf/config"
 import { createMiddleware } from "hono/factory"
 import Redis from "ioredis"
-
-import { loadEnv } from "@shelf/config"
 
 let redis: Redis | undefined
 
@@ -32,10 +31,7 @@ export function rateLimit(options: {
 
     if (count > options.limit) {
       c.header("retry-after", String(options.windowSeconds))
-      return c.json(
-        { error: { message: "Rate limit exceeded" } },
-        429
-      )
+      return c.json({ error: { message: "Rate limit exceeded" } }, 429)
     }
 
     await next()

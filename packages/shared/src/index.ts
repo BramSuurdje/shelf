@@ -4,7 +4,11 @@ import { z } from "zod"
 export const userRoleSchema = z.enum(["owner", "admin", "user"])
 export type UserRole = z.infer<typeof userRoleSchema>
 
-export const registrationModeSchema = z.enum(["invite_only", "open", "disabled"])
+export const registrationModeSchema = z.enum([
+  "invite_only",
+  "open",
+  "disabled",
+])
 export type RegistrationMode = z.infer<typeof registrationModeSchema>
 
 export const nodeTypeSchema = z.enum(["file", "folder"])
@@ -21,7 +25,12 @@ export const fileVersionStatusSchema = z.enum([
 ])
 export type FileVersionStatus = z.infer<typeof fileVersionStatusSchema>
 
-export const scanStatusSchema = z.enum(["not_required", "pending", "clean", "failed"])
+export const scanStatusSchema = z.enum([
+  "not_required",
+  "pending",
+  "clean",
+  "failed",
+])
 export type ScanStatus = z.infer<typeof scanStatusSchema>
 
 export const uploadKindSchema = z.enum(["single", "multipart"])
@@ -156,7 +165,9 @@ export function eventCursor() {
 export function publicLinkToken() {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  )
 }
 
 export async function sha256Hex(value: string) {

@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint",
-    "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "start": "bun server.ts",
     "preview": "vite preview"
@@ -25,18 +23,12 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@eslint/js": "^10",
     "@tailwindcss/vite": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6",
-    "eslint": "^10",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17",
     "typescript": "~6",
-    "typescript-eslint": "^8",
     "vite": "^8"
   }
 }

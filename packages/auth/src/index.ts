@@ -1,13 +1,12 @@
 import { redisStorage } from "@better-auth/redis-storage"
-import { betterAuth } from "better-auth"
-import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { createAccessControl } from "better-auth/plugins/access"
-import { admin as adminPlugin, username } from "better-auth/plugins"
-import Redis from "ioredis"
-
 import { loadEnv } from "@shelf/config"
 import { db } from "@shelf/db"
 import { maintenanceQueue } from "@shelf/jobs"
+import { betterAuth } from "better-auth"
+import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { admin as adminPlugin, username } from "better-auth/plugins"
+import { createAccessControl } from "better-auth/plugins/access"
+import Redis from "ioredis"
 
 const env = loadEnv()
 

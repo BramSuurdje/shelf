@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-
+import { openSecret, sealSecret } from "./packages/config/src/index"
+import { logger } from "./packages/logger/src/index"
 import {
   completeUploadSchema,
   createFolderSchema,
@@ -8,17 +9,15 @@ import {
   sha256Hex,
   usernameSchema,
 } from "./packages/shared/src/index"
-import { openSecret, sealSecret } from "./packages/config/src/index"
 import {
   completeMultipartUpload,
   createObjectKey,
   createThumbnailObjectKey,
   defaultPartSizeBytes,
   multipartThresholdBytes,
-  signedUrlExpiresSeconds,
   type S3Settings,
+  signedUrlExpiresSeconds,
 } from "./packages/storage/src/index"
-import { logger } from "./packages/logger/src/index"
 
 const testS3Settings: S3Settings = {
   endpoint: "https://storage.example.com",
@@ -146,7 +145,9 @@ describe("Shelf shared contracts", () => {
     expect(second).toStartWith("objects/user_1/obj_")
     expect(first).not.toBe(second)
     expect(first).not.toContain("report.pdf")
-    expect(createThumbnailObjectKey("ver_1")).toBe("thumbnails/ver_1/square.webp")
+    expect(createThumbnailObjectKey("ver_1")).toBe(
+      "thumbnails/ver_1/square.webp"
+    )
   })
 
   test("uses the upload timing and multipart defaults from the plan", () => {
@@ -164,19 +165,15 @@ describe("Shelf shared contracts", () => {
       },
     }
 
-    await completeMultipartUpload(
-      client as never,
-      testS3Settings,
-      {
-        objectKey: "objects/user_1/obj_1",
-        uploadId: "upload-1",
-        parts: [
-          { PartNumber: 3, ETag: "three" },
-          { PartNumber: 1, ETag: "one" },
-          { PartNumber: 2, ETag: "two" },
-        ],
-      }
-    )
+    await completeMultipartUpload(client as never, testS3Settings, {
+      objectKey: "objects/user_1/obj_1",
+      uploadId: "upload-1",
+      parts: [
+        { PartNumber: 3, ETag: "three" },
+        { PartNumber: 1, ETag: "one" },
+        { PartNumber: 2, ETag: "two" },
+      ],
+    })
 
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({

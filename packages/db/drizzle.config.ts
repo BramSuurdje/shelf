@@ -3,7 +3,10 @@ import { resolve } from "node:path"
 
 import { defineConfig } from "drizzle-kit"
 
-for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.env")]) {
+for (const envPath of [
+  resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "../../.env"),
+]) {
   if (!existsSync(envPath)) continue
   const lines = readFileSync(envPath, "utf8").split(/\r?\n/)
   for (const line of lines) {

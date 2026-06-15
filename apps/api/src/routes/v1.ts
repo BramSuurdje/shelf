@@ -1,14 +1,7 @@
-import { and, count, desc, eq, gt, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm"
-import { Hono } from "hono"
 import { Readable } from "node:stream"
-import nodemailer from "nodemailer"
-import { ZipFile } from "yazl"
-import { z } from "zod"
-
 import { auth, requireAdmin, requireSession } from "@shelf/auth"
 import { openSecret, sealSecret } from "@shelf/config"
 import { db, loadS3SettingsFromDb } from "@shelf/db"
-import { maintenanceQueue } from "@shelf/jobs"
 import {
   appSettings,
   auditEvents,
@@ -28,6 +21,7 @@ import {
   user,
   usernameHistory,
 } from "@shelf/db/schema"
+import { maintenanceQueue } from "@shelf/jobs"
 import {
   completeUploadSchema,
   createFolderSchema,
@@ -54,6 +48,22 @@ import {
   presignMultipartPart,
   presignSinglePutUpload,
 } from "@shelf/storage"
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm"
+import { Hono } from "hono"
+import nodemailer from "nodemailer"
+import { ZipFile } from "yazl"
+import { z } from "zod"
 
 import type { ApiVariables } from "../context"
 import { created, fail, ok, parseJson } from "../http"
@@ -109,27 +119,26 @@ const settingValueSchemas = {
 } as const
 
 const settingsUpdateSchema = z.object({
-  settings: z
-    .record(z.string(), z.unknown())
-    .superRefine((settings, ctx) => {
-      for (const [key, value] of Object.entries(settings)) {
-        const schema = settingValueSchemas[key as keyof typeof settingValueSchemas]
-        if (!schema) {
-          ctx.addIssue({
-            code: "custom",
-            path: [key],
-            message: "Unsupported setting key",
-          })
-          continue
-        }
-        const result = schema.safeParse(value)
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({ ...issue, path: [key, ...issue.path] })
-          }
+  settings: z.record(z.string(), z.unknown()).superRefine((settings, ctx) => {
+    for (const [key, value] of Object.entries(settings)) {
+      const schema =
+        settingValueSchemas[key as keyof typeof settingValueSchemas]
+      if (!schema) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Unsupported setting key",
+        })
+        continue
+      }
+      const result = schema.safeParse(value)
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          ctx.addIssue({ ...issue, path: [key, ...issue.path] })
         }
       }
-    }),
+    }
+  }),
   mutationId: z.string().min(8),
 })
 
@@ -168,11 +177,16 @@ async function prepareSettingValue(key: string, value: unknown) {
 }
 
 async function readRawSetting(key: string) {
-  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key))
+  const [row] = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
   return row
 }
 
-async function mergedS3Settings(input: z.infer<typeof s3SettingsPatchSchema>["settings"]) {
+async function mergedS3Settings(
+  input: z.infer<typeof s3SettingsPatchSchema>["settings"]
+) {
   const current = await loadS3SettingsFromDb()
   return {
     endpoint: input.endpoint ?? current.endpoint,
@@ -188,7 +202,9 @@ async function mergedS3Settings(input: z.infer<typeof s3SettingsPatchSchema>["se
   }
 }
 
-async function mergedSmtpSettings(input: z.infer<typeof smtpSettingsPatchSchema>["settings"]) {
+async function mergedSmtpSettings(
+  input: z.infer<typeof smtpSettingsPatchSchema>["settings"]
+) {
   const passwordRow = await readRawSetting("smtp.password")
   const currentPassword =
     typeof passwordRow?.value === "string"
@@ -256,13 +272,21 @@ v1Routes.use(
 )
 
 const usernameChangeSchema = z.object({
-  username: z.string().min(3).max(32).regex(/^[a-z0-9_]{3,32}$/),
+  username: z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[a-z0-9_]{3,32}$/),
   mutationId: z.string().min(8),
 })
 
 const avatarUploadSchema = z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  sizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(5 * 1024 * 1024),
   mutationId: z.string().min(8),
 })
 
@@ -270,13 +294,20 @@ const inviteAcceptSchema = z.object({
   token: z.string().min(16),
   name: z.string().min(1),
   email: z.email(),
-  username: z.string().min(3).max(32).regex(/^[a-z0-9_]{3,32}$/),
+  username: z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[a-z0-9_]{3,32}$/),
   password: z.string().min(10),
   mutationId: z.string().min(8),
 })
 
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
-  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key))
+  const [row] = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
   return (row?.value as T | undefined) ?? fallback
 }
 
@@ -287,7 +318,10 @@ async function changeUsername(params: {
   mutationId: string
   auditType: "username.changed" | "username.admin_overridden"
 }) {
-  const [target] = await db.select().from(user).where(eq(user.id, params.targetUserId))
+  const [target] = await db
+    .select()
+    .from(user)
+    .where(eq(user.id, params.targetUserId))
   if (!target) return { status: "not_found" as const }
   if (target.username === params.username) {
     return { status: "ok" as const, username: params.username }
@@ -370,7 +404,10 @@ async function canAccessNode(
       )
     if (permissionRow) return true
     if (!current.parentId) break
-    const [parent] = await db.select().from(nodes).where(eq(nodes.id, current.parentId))
+    const [parent] = await db
+      .select()
+      .from(nodes)
+      .where(eq(nodes.id, current.parentId))
     current = parent
   }
 
@@ -421,7 +458,11 @@ async function listDescendantNodes(rootNodeId: string) {
       .from(nodes)
       .where(and(eq(nodes.parentId, parentId), isNull(nodes.deletedAt)))
     descendants.push(...children)
-    queue.push(...children.filter((child) => child.type === "folder").map((child) => child.id))
+    queue.push(
+      ...children
+        .filter((child) => child.type === "folder")
+        .map((child) => child.id)
+    )
   }
 
   return descendants
@@ -448,7 +489,10 @@ async function createFolderZipResponse(rootNode: typeof nodes.$inferSelect) {
   const fileNodes = descendants.filter(
     (node) => node.type === "file" && node.activeFileVersionId
   )
-  const totalBytes = fileNodes.reduce((total, node) => total + node.sizeBytes, 0)
+  const totalBytes = fileNodes.reduce(
+    (total, node) => total + node.sizeBytes,
+    0
+  )
 
   if (fileNodes.length > maxZipFiles) {
     throw new Response("Folder has too many files to zip", { status: 413 })
@@ -462,7 +506,10 @@ async function createFolderZipResponse(rootNode: typeof nodes.$inferSelect) {
     .filter((id): id is string => Boolean(id))
   const versions =
     versionIds.length > 0
-      ? await db.select().from(fileVersions).where(inArray(fileVersions.id, versionIds))
+      ? await db
+          .select()
+          .from(fileVersions)
+          .where(inArray(fileVersions.id, versionIds))
       : []
   const versionsById = new Map(versions.map((version) => [version.id, version]))
   const nodesById = new Map(
@@ -476,7 +523,7 @@ async function createFolderZipResponse(rootNode: typeof nodes.$inferSelect) {
     const version = fileNode.activeFileVersionId
       ? versionsById.get(fileNode.activeFileVersionId)
       : undefined
-    if (!version || version.status !== "complete") continue
+    if (version?.status !== "complete") continue
     const segments = [fileNode.name]
     let parentId = fileNode.parentId
     while (parentId && parentId !== rootNode.id) {
@@ -488,7 +535,11 @@ async function createFolderZipResponse(rootNode: typeof nodes.$inferSelect) {
 
     zip.addReadStreamLazy(zipEntryName(segments), async (callback) => {
       try {
-        const object = await getObjectStream(client, settings, version.objectKey)
+        const object = await getObjectStream(
+          client,
+          settings,
+          version.objectKey
+        )
         if (!object.Body) throw new Error("S3 object has no body")
         callback(null, object.Body as NodeJS.ReadableStream)
       } catch (error) {
@@ -501,12 +552,15 @@ async function createFolderZipResponse(rootNode: typeof nodes.$inferSelect) {
   }
 
   zip.end()
-  return new Response(Readable.toWeb(zip.outputStream as Readable) as unknown as ReadableStream, {
-    headers: {
-      "content-type": "application/zip",
-      "content-disposition": `attachment; filename="${rootNode.name.replaceAll('"', "")}.zip"`,
-    },
-  })
+  return new Response(
+    Readable.toWeb(zip.outputStream as Readable) as unknown as ReadableStream,
+    {
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": `attachment; filename="${rootNode.name.replaceAll('"', "")}.zip"`,
+      },
+    }
+  )
 }
 
 async function assertPublicLinkPassword(
@@ -565,14 +619,18 @@ async function recordPublicLinkAccess(
 }
 
 async function assertRegistrationAllowed(request: Request) {
-  const body = (await request.clone().json().catch(() => ({}))) as {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => ({}))) as {
     inviteToken?: string
     email?: string
   }
   const mode = await readSetting("registration.mode", "invite_only")
 
   if (mode === "open") return
-  if (mode === "disabled") throw new Response("Registration disabled", { status: 403 })
+  if (mode === "disabled")
+    throw new Response("Registration disabled", { status: 403 })
 
   if (!body.inviteToken || !body.email) {
     throw new Response("Invite required", { status: 403 })
@@ -595,7 +653,10 @@ async function assertRegistrationAllowed(request: Request) {
 }
 
 v1Routes.post("/auth/sign-up/email", async (c) => {
-  const body = (await c.req.raw.clone().json().catch(() => ({}))) as {
+  const body = (await c.req.raw
+    .clone()
+    .json()
+    .catch(() => ({}))) as {
     inviteToken?: string
     email?: string
     username?: string
@@ -662,7 +723,10 @@ v1Routes.post("/invites/accept", async (c) => {
 
   if (!invite) return fail(c, 404, "Invite not found")
   if (invite.acceptedByUserId) {
-    const existingResponse = await readMutationReceipt(invite.acceptedByUserId, input.mutationId)
+    const existingResponse = await readMutationReceipt(
+      invite.acceptedByUserId,
+      input.mutationId
+    )
     if (existingResponse) return ok(c, existingResponse)
   }
   if (invite.acceptedAt) return fail(c, 409, "Invite has already been accepted")
@@ -733,7 +797,10 @@ v1Routes.post("/setup", async (c) => {
       .from(user)
       .where(eq(user.email, input.owner.email.toLowerCase()))
     if (owner) {
-      const existingResponse = await readMutationReceipt(owner.id, input.mutationId)
+      const existingResponse = await readMutationReceipt(
+        owner.id,
+        input.mutationId
+      )
       if (existingResponse) return ok(c, existingResponse)
     }
     return fail(c, 409, "First-run setup is permanently disabled")
@@ -780,7 +847,11 @@ v1Routes.post("/setup", async (c) => {
 
     await tx.insert(appSettings).values([
       { key: "app.name", value: input.appName, updatedByUserId: ownerId },
-      { key: "app.publicUrl", value: input.publicAppUrl, updatedByUserId: ownerId },
+      {
+        key: "app.publicUrl",
+        value: input.publicAppUrl,
+        updatedByUserId: ownerId,
+      },
       {
         key: "registration.mode",
         value: input.registrationMode,
@@ -843,7 +914,11 @@ v1Routes.post("/setup", async (c) => {
         value: input.oauth.googleEnabled,
         updatedByUserId: ownerId,
       },
-      { key: "smtp.enabled", value: input.smtpEnabled, updatedByUserId: ownerId },
+      {
+        key: "smtp.enabled",
+        value: input.smtpEnabled,
+        updatedByUserId: ownerId,
+      },
       { key: "smtp.host", value: "", updatedByUserId: ownerId },
       { key: "smtp.port", value: 587, updatedByUserId: ownerId },
       { key: "smtp.secure", value: false, updatedByUserId: ownerId },
@@ -892,7 +967,8 @@ v1Routes.get("/nodes", async (c) => {
       .orderBy(nodes.type, nodes.name)
     const visibleRows = []
     for (const row of rows) {
-      if (await canAccessNode(row.id, session.user.id, "viewer")) visibleRows.push(row)
+      if (await canAccessNode(row.id, session.user.id, "viewer"))
+        visibleRows.push(row)
     }
     return ok(c, { nodes: visibleRows })
   }
@@ -920,17 +996,13 @@ v1Routes.get("/nodes/search", async (c) => {
   const rows = await db
     .select()
     .from(nodes)
-    .where(
-      and(
-        isNull(nodes.deletedAt),
-        ilike(nodes.name, `%${query}%`)
-      )
-    )
+    .where(and(isNull(nodes.deletedAt), ilike(nodes.name, `%${query}%`)))
     .orderBy(desc(nodes.updatedAt))
     .limit(50)
   const visibleRows = []
   for (const row of rows) {
-    if (await canAccessNode(row.id, session.user.id, "viewer")) visibleRows.push(row)
+    if (await canAccessNode(row.id, session.user.id, "viewer"))
+      visibleRows.push(row)
   }
 
   return ok(c, { nodes: visibleRows })
@@ -951,9 +1023,13 @@ v1Routes.get("/nodes/recent", async (c) => {
 v1Routes.post("/nodes/folders", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, createFolderSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
-  if (input.parentId) await requireNodeAccess(input.parentId, session.user.id, "editor")
+  if (input.parentId)
+    await requireNodeAccess(input.parentId, session.user.id, "editor")
   if (
     await findActiveSibling({
       ownerId: session.user.id,
@@ -1003,7 +1079,10 @@ v1Routes.patch("/nodes/:id", async (c) => {
     })
   )
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await requireNodeAccess(id, session.user.id, "editor")
   const [current] = await db
@@ -1015,7 +1094,8 @@ v1Routes.patch("/nodes/:id", async (c) => {
   if (input.baseNodeRevision && input.baseNodeRevision !== current.revision) {
     return fail(c, 409, "Base node revision is stale")
   }
-  if (input.parentId) await requireNodeAccess(input.parentId, session.user.id, "editor")
+  if (input.parentId)
+    await requireNodeAccess(input.parentId, session.user.id, "editor")
   const nextParentId = Object.hasOwn(input, "parentId")
     ? (input.parentId ?? null)
     : current.parentId
@@ -1069,10 +1149,14 @@ v1Routes.post("/nodes/:id/copy", async (c) => {
     })
   )
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await requireNodeAccess(id, session.user.id, "viewer")
-  if (input.parentId) await requireNodeAccess(input.parentId, session.user.id, "editor")
+  if (input.parentId)
+    await requireNodeAccess(input.parentId, session.user.id, "editor")
 
   const [source] = await db
     .select()
@@ -1093,7 +1177,8 @@ v1Routes.post("/nodes/:id/copy", async (c) => {
   const rootCopyId = createId("nod")
   const cursor = eventCursor()
   const idMap = new Map<string, string>([[source.id, rootCopyId]])
-  const descendants = source.type === "folder" ? await listDescendantNodes(source.id) : []
+  const descendants =
+    source.type === "folder" ? await listDescendantNodes(source.id) : []
 
   await db.transaction(async (tx) => {
     await tx.insert(nodes).values({
@@ -1147,13 +1232,20 @@ v1Routes.delete("/nodes/:id", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, z.object({ mutationId: z.string().min(8) }))
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await requireNodeAccess(id, session.user.id, "editor")
   const cursor = eventCursor()
   const [updated] = await db
     .update(nodes)
-    .set({ deletedAt: new Date(), tombstoneAt: new Date(), updatedAt: new Date() })
+    .set({
+      deletedAt: new Date(),
+      tombstoneAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(nodes.id, id))
     .returning()
 
@@ -1179,18 +1271,22 @@ v1Routes.get("/nodes/:id/download", async (c) => {
   const id = c.req.param("id")
   await requireNodeAccess(id, session.user.id, "viewer")
   const [node] = await db.select().from(nodes).where(eq(nodes.id, id))
-  if (!node || node.type !== "file" || !node.activeFileVersionId) {
+  if (node?.type !== "file" || !node.activeFileVersionId) {
     return fail(c, 404, "Downloadable file not found")
   }
   const [version] = await db
     .select()
     .from(fileVersions)
     .where(eq(fileVersions.id, node.activeFileVersionId))
-  if (!version || version.status !== "complete") {
+  if (version?.status !== "complete") {
     return fail(c, 404, "Completed file version not found")
   }
   const settings = await loadS3SettingsFromDb()
-  const url = await presignGetObject(createS3Client(settings), settings, version.objectKey)
+  const url = await presignGetObject(
+    createS3Client(settings),
+    settings,
+    version.objectKey
+  )
   await db.insert(auditEvents).values({
     id: createId("aud"),
     actorUserId: session.user.id,
@@ -1206,10 +1302,13 @@ v1Routes.get("/nodes/:id/preview/text", async (c) => {
   const id = c.req.param("id")
   await requireNodeAccess(id, session.user.id, "viewer")
   const [node] = await db.select().from(nodes).where(eq(nodes.id, id))
-  if (!node || node.type !== "file" || !node.activeFileVersionId) {
+  if (node?.type !== "file" || !node.activeFileVersionId) {
     return fail(c, 404, "Previewable file not found")
   }
-  if (!node.mimeType?.startsWith("text/") && node.mimeType !== "application/json") {
+  if (
+    !node.mimeType?.startsWith("text/") &&
+    node.mimeType !== "application/json"
+  ) {
     return fail(c, 415, "Text preview is not available for this file type")
   }
   const maxPreviewBytes = 1024 * 1024
@@ -1220,11 +1319,15 @@ v1Routes.get("/nodes/:id/preview/text", async (c) => {
     .select()
     .from(fileVersions)
     .where(eq(fileVersions.id, node.activeFileVersionId))
-  if (!version || version.status !== "complete") {
+  if (version?.status !== "complete") {
     return fail(c, 404, "Completed file version not found")
   }
   const settings = await loadS3SettingsFromDb()
-  const object = await getObjectStream(createS3Client(settings), settings, version.objectKey)
+  const object = await getObjectStream(
+    createS3Client(settings),
+    settings,
+    version.objectKey
+  )
   if (!object.Body) return fail(c, 404, "Object body not found")
   const text = await new Response(object.Body as BodyInit).text()
   return ok(c, { text, truncated: false, sizeBytes: node.sizeBytes })
@@ -1235,7 +1338,7 @@ v1Routes.get("/nodes/:id/zip", async (c) => {
   const id = c.req.param("id")
   await requireNodeAccess(id, session.user.id, "viewer")
   const [node] = await db.select().from(nodes).where(eq(nodes.id, id))
-  if (!node || node.type !== "folder") return fail(c, 404, "Folder not found")
+  if (node?.type !== "folder") return fail(c, 404, "Folder not found")
   await db.insert(auditEvents).values({
     id: createId("aud"),
     actorUserId: session.user.id,
@@ -1261,13 +1364,22 @@ v1Routes.post("/trash/:id/restore", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, z.object({ mutationId: z.string().min(8) }))
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const cursor = eventCursor()
   const [current] = await db
     .select()
     .from(nodes)
-    .where(and(eq(nodes.id, id), eq(nodes.ownerId, session.user.id), isNotNull(nodes.deletedAt)))
+    .where(
+      and(
+        eq(nodes.id, id),
+        eq(nodes.ownerId, session.user.id),
+        isNotNull(nodes.deletedAt)
+      )
+    )
   if (!current) return fail(c, 404, "Node not found")
   if (
     await findActiveSibling({
@@ -1310,7 +1422,10 @@ v1Routes.delete("/trash/:id", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const settings = await loadS3SettingsFromDb()
   const client = createS3Client(settings)
@@ -1324,7 +1439,9 @@ v1Routes.delete("/trash/:id", async (c) => {
   }
 
   await db.transaction(async (tx) => {
-    await tx.delete(nodes).where(and(eq(nodes.id, id), eq(nodes.ownerId, session.user.id)))
+    await tx
+      .delete(nodes)
+      .where(and(eq(nodes.id, id), eq(nodes.ownerId, session.user.id)))
     await tx.insert(auditEvents).values({
       id: createId("aud"),
       actorUserId: session.user.id,
@@ -1346,13 +1463,19 @@ v1Routes.get("/events", async (c) => {
     .from(nodeEvents)
     .where(
       cursor
-        ? and(eq(nodeEvents.userId, session.user.id), gt(nodeEvents.cursor, cursor))
+        ? and(
+            eq(nodeEvents.userId, session.user.id),
+            gt(nodeEvents.cursor, cursor)
+          )
         : eq(nodeEvents.userId, session.user.id)
     )
     .orderBy(nodeEvents.cursor)
     .limit(200)
 
-  return ok(c, { events: rows, nextCursor: rows.at(-1)?.cursor ?? cursor ?? null })
+  return ok(c, {
+    events: rows,
+    nextCursor: rows.at(-1)?.cursor ?? cursor ?? null,
+  })
 })
 
 v1Routes.get("/devices", async (c) => {
@@ -1374,7 +1497,10 @@ v1Routes.post("/devices", async (c) => {
       mutationId: z.string().min(8),
     })
   )
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const id = createId("dev")
   await db.insert(devices).values({
@@ -1400,7 +1526,13 @@ v1Routes.get("/users/lookup", async (c) => {
       image: user.image,
     })
     .from(user)
-    .where(and(eq(user.username, username), isNull(user.disabledAt), eq(user.banned, false)))
+    .where(
+      and(
+        eq(user.username, username),
+        isNull(user.disabledAt),
+        eq(user.banned, false)
+      )
+    )
   if (!targetUser) return fail(c, 404, "User not found")
   return ok(c, { user: targetUser })
 })
@@ -1408,9 +1540,13 @@ v1Routes.get("/users/lookup", async (c) => {
 v1Routes.post("/uploads", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, uploadSessionSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
-  if (input.parentId) await requireNodeAccess(input.parentId, session.user.id, "editor")
+  if (input.parentId)
+    await requireNodeAccess(input.parentId, session.user.id, "editor")
   const maxFileSizeBytes = await readSetting<number | null>(
     "storage.maxFileSizeBytes",
     null
@@ -1432,7 +1568,10 @@ v1Routes.post("/uploads", async (c) => {
   const quotaBytes =
     quotaOverride?.quotaBytes ??
     session.user.storageQuotaBytes ??
-    (await readSetting<number>("storage.defaultUserQuotaBytes", 10 * 1024 * 1024 * 1024))
+    (await readSetting<number>(
+      "storage.defaultUserQuotaBytes",
+      10 * 1024 * 1024 * 1024
+    ))
   const projectedBytes =
     (usage?.usedBytes ?? 0) + (usage?.reservedBytes ?? 0) + input.sizeBytes
   if (projectedBytes > quotaBytes) {
@@ -1477,7 +1616,8 @@ v1Routes.post("/uploads", async (c) => {
   const fileVersionId = createId("ver")
   const uploadSessionId = createId("upl")
   const objectKey = createObjectKey(session.user.id)
-  const kind = input.sizeBytes >= multipartThresholdBytes ? "multipart" : "single"
+  const kind =
+    input.sizeBytes >= multipartThresholdBytes ? "multipart" : "single"
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
 
   let response:
@@ -1557,7 +1697,8 @@ v1Routes.post("/uploads", async (c) => {
       objectKey,
       kind,
       status: "pending",
-      multipartUploadId: response.kind === "multipart" ? response.uploadId : null,
+      multipartUploadId:
+        response.kind === "multipart" ? response.uploadId : null,
       sizeBytes: input.sizeBytes,
       reservedBytes: input.sizeBytes,
       expiresAt,
@@ -1576,7 +1717,13 @@ v1Routes.post("/uploads", async (c) => {
       })
   })
 
-  const responseBody = { uploadSessionId, nodeId, fileVersionId, objectKey, upload: response }
+  const responseBody = {
+    uploadSessionId,
+    nodeId,
+    fileVersionId,
+    objectKey,
+    upload: response,
+  }
   await writeMutationReceipt(session.user.id, input.mutationId, responseBody)
   return created(c, responseBody)
 })
@@ -1584,13 +1731,21 @@ v1Routes.post("/uploads", async (c) => {
 v1Routes.post("/uploads/:id/complete", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, completeUploadSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const id = c.req.param("id")
   const [sessionRow] = await db
     .select()
     .from(uploadSessions)
-    .where(and(eq(uploadSessions.id, id), eq(uploadSessions.ownerId, session.user.id)))
+    .where(
+      and(
+        eq(uploadSessions.id, id),
+        eq(uploadSessions.ownerId, session.user.id)
+      )
+    )
 
   if (!sessionRow) return fail(c, 404, "Upload session not found")
   const [pendingVersion] = await db
@@ -1626,7 +1781,11 @@ v1Routes.post("/uploads/:id/complete", async (c) => {
   await db.transaction(async (tx) => {
     await tx
       .update(uploadSessions)
-      .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
       .where(eq(uploadSessions.id, id))
     await tx
       .update(fileVersions)
@@ -1681,13 +1840,21 @@ v1Routes.post("/uploads/:id/complete", async (c) => {
 v1Routes.post("/uploads/:id/abort", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const id = c.req.param("id")
   const [sessionRow] = await db
     .update(uploadSessions)
     .set({ status: "aborted", updatedAt: new Date() })
-    .where(and(eq(uploadSessions.id, id), eq(uploadSessions.ownerId, session.user.id)))
+    .where(
+      and(
+        eq(uploadSessions.id, id),
+        eq(uploadSessions.ownerId, session.user.id)
+      )
+    )
     .returning()
 
   if (!sessionRow) return fail(c, 404, "Upload session not found")
@@ -1722,9 +1889,15 @@ v1Routes.post("/uploads/:id/abort", async (c) => {
 v1Routes.post("/shares", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, shareSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
-  const [targetUser] = await db.select().from(user).where(eq(user.username, input.username))
+  const [targetUser] = await db
+    .select()
+    .from(user)
+    .where(eq(user.username, input.username))
   if (!targetUser) return fail(c, 404, "User not found")
   await requireNodeAccess(input.nodeId, session.user.id, "editor")
 
@@ -1791,13 +1964,21 @@ v1Routes.patch("/shares/:nodeId/:userId", async (c) => {
   )
   const nodeId = c.req.param("nodeId")
   const userId = c.req.param("userId")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await requireNodeAccess(nodeId, session.user.id, "editor")
   const [updated] = await db
     .update(nodePermissions)
     .set({ permission: input.permission })
-    .where(and(eq(nodePermissions.nodeId, nodeId), eq(nodePermissions.userId, userId)))
+    .where(
+      and(
+        eq(nodePermissions.nodeId, nodeId),
+        eq(nodePermissions.userId, userId)
+      )
+    )
     .returning()
   if (!updated) return fail(c, 404, "Share not found")
   await db.insert(auditEvents).values({
@@ -1818,12 +1999,20 @@ v1Routes.delete("/shares/:nodeId/:userId", async (c) => {
   const input = await parseJson(c, mutationOnlySchema)
   const nodeId = c.req.param("nodeId")
   const userId = c.req.param("userId")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await requireNodeAccess(nodeId, session.user.id, "editor")
   await db
     .delete(nodePermissions)
-    .where(and(eq(nodePermissions.nodeId, nodeId), eq(nodePermissions.userId, userId)))
+    .where(
+      and(
+        eq(nodePermissions.nodeId, nodeId),
+        eq(nodePermissions.userId, userId)
+      )
+    )
   await db.insert(auditEvents).values({
     id: createId("aud"),
     actorUserId: session.user.id,
@@ -1840,9 +2029,15 @@ v1Routes.delete("/shares/:nodeId/:userId", async (c) => {
 v1Routes.post("/public-links", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, publicLinkSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
-  const publicLinksEnabled = await readSetting("sharing.publicLinksEnabled", true)
+  const publicLinksEnabled = await readSetting(
+    "sharing.publicLinksEnabled",
+    true
+  )
   if (!publicLinksEnabled) return fail(c, 403, "Public links are disabled")
   await requireNodeAccess(input.nodeId, session.user.id, "editor")
   const token = publicLinkToken()
@@ -1879,7 +2074,12 @@ v1Routes.get("/public/:token", async (c) => {
   const [link] = await db
     .select()
     .from(publicLinks)
-    .where(and(eq(publicLinks.tokenHash, tokenHash), eq(publicLinks.status, "active")))
+    .where(
+      and(
+        eq(publicLinks.tokenHash, tokenHash),
+        eq(publicLinks.status, "active")
+      )
+    )
 
   if (!link) return fail(c, 404, "Public link not found")
   if (link.expiresAt && link.expiresAt.getTime() < Date.now()) {
@@ -1888,7 +2088,10 @@ v1Routes.get("/public/:token", async (c) => {
   if (link.maxDownloads && link.downloadCount >= link.maxDownloads) {
     return fail(c, 410, "Public link download limit reached")
   }
-  await assertPublicLinkPassword(c.req.header("x-public-link-password"), link.passwordHash)
+  await assertPublicLinkPassword(
+    c.req.header("x-public-link-password"),
+    link.passwordHash
+  )
 
   const [node] = await db.select().from(nodes).where(eq(nodes.id, link.nodeId))
   await recordPublicLinkAccess(c.req.raw, link.id, link.nodeId, "view.allowed")
@@ -1908,7 +2111,12 @@ v1Routes.get("/public/:token/download", async (c) => {
   const [link] = await db
     .select()
     .from(publicLinks)
-    .where(and(eq(publicLinks.tokenHash, tokenHash), eq(publicLinks.status, "active")))
+    .where(
+      and(
+        eq(publicLinks.tokenHash, tokenHash),
+        eq(publicLinks.status, "active")
+      )
+    )
   if (!link) return fail(c, 404, "Public link not found")
   if (link.expiresAt && link.expiresAt.getTime() < Date.now()) {
     return fail(c, 410, "Public link expired")
@@ -1916,33 +2124,51 @@ v1Routes.get("/public/:token/download", async (c) => {
   if (link.maxDownloads && link.downloadCount >= link.maxDownloads) {
     return fail(c, 410, "Public link download limit reached")
   }
-  await assertPublicLinkPassword(c.req.header("x-public-link-password"), link.passwordHash)
+  await assertPublicLinkPassword(
+    c.req.header("x-public-link-password"),
+    link.passwordHash
+  )
   const [node] = await db.select().from(nodes).where(eq(nodes.id, link.nodeId))
   if (node?.type === "folder") {
     await db
       .update(publicLinks)
-      .set({ downloadCount: sql`${publicLinks.downloadCount} + 1`, updatedAt: new Date() })
+      .set({
+        downloadCount: sql`${publicLinks.downloadCount} + 1`,
+        updatedAt: new Date(),
+      })
       .where(eq(publicLinks.id, link.id))
     await recordPublicLinkAccess(c.req.raw, link.id, link.nodeId, "zip.allowed")
     return createFolderZipResponse(node)
   }
-  if (!node || node.type !== "file" || !node.activeFileVersionId) {
+  if (node?.type !== "file" || !node.activeFileVersionId) {
     return fail(c, 404, "Downloadable file not found")
   }
   const [version] = await db
     .select()
     .from(fileVersions)
     .where(eq(fileVersions.id, node.activeFileVersionId))
-  if (!version || version.status !== "complete") {
+  if (version?.status !== "complete") {
     return fail(c, 404, "Completed file version not found")
   }
   const settings = await loadS3SettingsFromDb()
-  const url = await presignGetObject(createS3Client(settings), settings, version.objectKey)
+  const url = await presignGetObject(
+    createS3Client(settings),
+    settings,
+    version.objectKey
+  )
   await db
     .update(publicLinks)
-    .set({ downloadCount: sql`${publicLinks.downloadCount} + 1`, updatedAt: new Date() })
+    .set({
+      downloadCount: sql`${publicLinks.downloadCount} + 1`,
+      updatedAt: new Date(),
+    })
     .where(eq(publicLinks.id, link.id))
-  await recordPublicLinkAccess(c.req.raw, link.id, link.nodeId, "download.allowed")
+  await recordPublicLinkAccess(
+    c.req.raw,
+    link.id,
+    link.nodeId,
+    "download.allowed"
+  )
   return ok(c, { url, expiresInSeconds: 15 * 60 })
 })
 
@@ -1957,7 +2183,10 @@ v1Routes.patch("/public-links/:id", async (c) => {
       mutationId: z.string().min(8),
     })
   )
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [updated] = await db
     .update(publicLinks)
@@ -1972,7 +2201,12 @@ v1Routes.patch("/public-links/:id", async (c) => {
       status: input.status,
       updatedAt: new Date(),
     })
-    .where(and(eq(publicLinks.id, c.req.param("id")), eq(publicLinks.ownerId, session.user.id)))
+    .where(
+      and(
+        eq(publicLinks.id, c.req.param("id")),
+        eq(publicLinks.ownerId, session.user.id)
+      )
+    )
     .returning()
   if (!updated) return fail(c, 404, "Public link not found")
   const response = { publicLink: updated }
@@ -1983,12 +2217,20 @@ v1Routes.patch("/public-links/:id", async (c) => {
 v1Routes.delete("/public-links/:id", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [updated] = await db
     .update(publicLinks)
     .set({ status: "disabled", updatedAt: new Date() })
-    .where(and(eq(publicLinks.id, c.req.param("id")), eq(publicLinks.ownerId, session.user.id)))
+    .where(
+      and(
+        eq(publicLinks.id, c.req.param("id")),
+        eq(publicLinks.ownerId, session.user.id)
+      )
+    )
     .returning()
   if (!updated) return fail(c, 404, "Public link not found")
   await db.insert(auditEvents).values({
@@ -2043,7 +2285,10 @@ v1Routes.post("/settings/test-smtp", async (c) => {
 v1Routes.patch("/settings", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, settingsUpdateSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await db.transaction(async (tx) => {
     for (const [key, value] of Object.entries(input.settings)) {
@@ -2084,13 +2329,19 @@ v1Routes.get("/quotas/me", async (c) => {
     .select()
     .from(storageUsage)
     .where(eq(storageUsage.userId, session.user.id))
-  const [quota] = await db.select().from(quotas).where(eq(quotas.userId, session.user.id))
+  const [quota] = await db
+    .select()
+    .from(quotas)
+    .where(eq(quotas.userId, session.user.id))
   return ok(c, {
     usage,
     quotaBytes:
       quota?.quotaBytes ??
       session.user.storageQuotaBytes ??
-      (await readSetting<number>("storage.defaultUserQuotaBytes", 10 * 1024 * 1024 * 1024)),
+      (await readSetting<number>(
+        "storage.defaultUserQuotaBytes",
+        10 * 1024 * 1024 * 1024
+      )),
   })
 })
 
@@ -2104,7 +2355,10 @@ v1Routes.patch("/admin/users/:id/quota", async (c) => {
     })
   )
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await db
     .insert(quotas)
@@ -2141,7 +2395,10 @@ v1Routes.get("/profile", async (c) => {
 v1Routes.patch("/profile", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, profileUpdateSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [updated] = await db.transaction(async (tx) => {
     const rows = await tx
@@ -2170,11 +2427,17 @@ v1Routes.patch("/profile", async (c) => {
 v1Routes.post("/profile/username", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, usernameChangeSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const lastChanged = session.user.usernameChangedAt
   const cooldownMs = 365 * 24 * 60 * 60 * 1000
-  if (lastChanged && Date.now() - new Date(lastChanged).getTime() < cooldownMs) {
+  if (
+    lastChanged &&
+    Date.now() - new Date(lastChanged).getTime() < cooldownMs
+  ) {
     return fail(c, 429, "Username can only be changed once every 365 days")
   }
   const result = await changeUsername({
@@ -2194,7 +2457,10 @@ v1Routes.post("/profile/username", async (c) => {
 v1Routes.post("/profile/avatar/upload-session", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, avatarUploadSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const settings = await loadS3SettingsFromDb()
   const client = createS3Client(settings)
@@ -2215,7 +2481,11 @@ v1Routes.post("/profile/avatar/upload-session", async (c) => {
     expiresAt,
     mutationId: input.mutationId,
   })
-  const response = { uploadSessionId: id, url, expiresAt: expiresAt.toISOString() }
+  const response = {
+    uploadSessionId: id,
+    url,
+    expiresAt: expiresAt.toISOString(),
+  }
   await writeMutationReceipt(session.user.id, input.mutationId, response)
   return created(c, response)
 })
@@ -2224,7 +2494,10 @@ v1Routes.post("/profile/avatar/:id/complete", async (c) => {
   const session = await requireSession(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const id = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [upload] = await db
     .select()
@@ -2245,7 +2518,11 @@ v1Routes.post("/profile/avatar/:id/complete", async (c) => {
     return fail(c, 410, "Avatar upload session expired")
   }
   const settings = await loadS3SettingsFromDb()
-  const metadata = await headObject(createS3Client(settings), settings, upload.objectKey)
+  const metadata = await headObject(
+    createS3Client(settings),
+    settings,
+    upload.objectKey
+  )
   if (metadata.ContentLength !== upload.sizeBytes) {
     return fail(c, 422, "Uploaded avatar size does not match session size")
   }
@@ -2301,12 +2578,18 @@ v1Routes.post("/admin/users/:id/suspend", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   if (targetUserId === session.user.id) {
     return fail(c, 409, "Admins cannot suspend themselves")
   }
-  await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, targetUserId))
+  await db
+    .update(user)
+    .set({ disabledAt: new Date() })
+    .where(eq(user.id, targetUserId))
   await db.insert(auditEvents).values({
     id: createId("aud"),
     actorUserId: session.user.id,
@@ -2323,7 +2606,10 @@ v1Routes.post("/admin/users/:id/restore", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await db
     .update(user)
@@ -2345,7 +2631,10 @@ v1Routes.post("/admin/users/:id/promote", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   await db.update(user).set({ role: "admin" }).where(eq(user.id, targetUserId))
   await db.insert(auditEvents).values({
@@ -2364,7 +2653,10 @@ v1Routes.post("/admin/users/:id/demote", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   if (targetUserId === session.user.id) {
     return fail(c, 409, "Admins cannot demote themselves")
@@ -2385,7 +2677,10 @@ v1Routes.post("/admin/users/:id/demote", async (c) => {
 v1Routes.post("/admin/users/:id/username", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, usernameChangeSchema)
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const result = await changeUsername({
     actorUserId: session.user.id,
@@ -2403,8 +2698,12 @@ v1Routes.post("/admin/users/:id/username", async (c) => {
 
 v1Routes.get("/admin/owner-transfer/:id/eligibility", async (c) => {
   const session = await requireSession(c.req.raw)
-  if (session.user.role !== "owner") return fail(c, 403, "Owner access required")
-  const [target] = await db.select().from(user).where(eq(user.id, c.req.param("id")))
+  if (session.user.role !== "owner")
+    return fail(c, 403, "Owner access required")
+  const [target] = await db
+    .select()
+    .from(user)
+    .where(eq(user.id, c.req.param("id")))
   return ok(c, {
     eligible: Boolean(target && !target.disabledAt && !target.banned),
     targetUserId: c.req.param("id"),
@@ -2413,7 +2712,8 @@ v1Routes.get("/admin/owner-transfer/:id/eligibility", async (c) => {
 
 v1Routes.post("/admin/owner-transfer/:id", async (c) => {
   const session = await requireSession(c.req.raw)
-  if (session.user.role !== "owner") return fail(c, 403, "Owner access required")
+  if (session.user.role !== "owner")
+    return fail(c, 403, "Owner access required")
   const input = await parseJson(
     c,
     z.object({
@@ -2422,15 +2722,24 @@ v1Routes.post("/admin/owner-transfer/:id", async (c) => {
     })
   )
   const targetUserId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [target] = await db.select().from(user).where(eq(user.id, targetUserId))
   if (!target || target.disabledAt || target.banned) {
     return fail(c, 409, "Target user is not eligible for owner transfer")
   }
   await db.transaction(async (tx) => {
-    await tx.update(user).set({ role: "admin" }).where(eq(user.id, session.user.id))
-    await tx.update(user).set({ role: "owner" }).where(eq(user.id, targetUserId))
+    await tx
+      .update(user)
+      .set({ role: "admin" })
+      .where(eq(user.id, session.user.id))
+    await tx
+      .update(user)
+      .set({ role: "owner" })
+      .where(eq(user.id, targetUserId))
     await tx.insert(auditEvents).values({
       id: createId("aud"),
       actorUserId: session.user.id,
@@ -2454,7 +2763,10 @@ v1Routes.post("/admin/invites", async (c) => {
       mutationId: z.string().min(8),
     })
   )
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const token = publicLinkToken()
   const id = createId("inv")
@@ -2496,7 +2808,10 @@ v1Routes.post("/admin/invites/:id/revoke", async (c) => {
   const session = await requireAdmin(c.req.raw)
   const input = await parseJson(c, mutationOnlySchema)
   const inviteId = c.req.param("id")
-  const existingResponse = await readMutationReceipt(session.user.id, input.mutationId)
+  const existingResponse = await readMutationReceipt(
+    session.user.id,
+    input.mutationId
+  )
   if (existingResponse) return ok(c, existingResponse)
   const [invite] = await db
     .update(invites)
@@ -2547,6 +2862,10 @@ v1Routes.get("/admin/diagnostics", async (c) => {
 
 v1Routes.get("/audit", async (c) => {
   await requireAdmin(c.req.raw)
-  const rows = await db.select().from(auditEvents).orderBy(desc(auditEvents.createdAt)).limit(100)
+  const rows = await db
+    .select()
+    .from(auditEvents)
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(100)
   return ok(c, { events: rows })
 })

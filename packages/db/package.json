@@ -7,7 +7,6 @@
     "build": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "lint": "eslint src drizzle.config.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
@@ -25,4 +24,3 @@
     "./schema": "./src/schema.ts"
   }
 }
-

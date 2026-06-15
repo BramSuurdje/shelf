@@ -7,7 +7,6 @@
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "configure-cors": "bun run scripts/configure-cors.ts",
     "dev": "bun --watch src/index.ts",
-    "lint": "eslint src",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
