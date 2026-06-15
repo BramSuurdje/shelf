@@ -206,6 +206,50 @@ type AdminSmtpForm = {
   from: string
 }
 
+type AuthenticatedAppState = {
+  section: Section
+  parentId: string | null
+  selectedNode: ShelfNode | null
+  isDragging: boolean
+  searchQuery: string
+}
+
+type AuthenticatedAppAction =
+  | { type: "set-section"; section: Section }
+  | { type: "open-folder"; parentId: string | null }
+  | { type: "select-node"; node: ShelfNode | null }
+  | { type: "set-dragging"; isDragging: boolean }
+  | { type: "set-search"; searchQuery: string }
+  | { type: "open-my-shelf-folder"; parentId: string }
+
+const authenticatedAppInitialState: AuthenticatedAppState = {
+  section: "my-shelf",
+  parentId: null,
+  selectedNode: null,
+  isDragging: false,
+  searchQuery: "",
+}
+
+function authenticatedAppReducer(
+  state: AuthenticatedAppState,
+  action: AuthenticatedAppAction
+): AuthenticatedAppState {
+  switch (action.type) {
+    case "set-section":
+      return { ...state, section: action.section }
+    case "open-folder":
+      return { ...state, parentId: action.parentId }
+    case "select-node":
+      return { ...state, selectedNode: action.node }
+    case "set-dragging":
+      return { ...state, isDragging: action.isDragging }
+    case "set-search":
+      return { ...state, searchQuery: action.searchQuery }
+    case "open-my-shelf-folder":
+      return { ...state, parentId: action.parentId, section: "my-shelf" }
+  }
+}
+
 const navigation: Array<{
   id: Section
   label: string
@@ -226,9 +270,13 @@ export function App() {
 }
 
 function PublicLinkView({ token }: { token: string }) {
+  const queryClient = useQueryClient()
   const [password, setPassword] = React.useState("")
   const [passwordSubmitted, setPasswordSubmitted] = React.useState(false)
-  const query = useQuery({
+  const {
+    data: publicLinkData,
+    error: publicLinkError,
+  } = useQuery({
     queryKey: ["public-link", token, passwordSubmitted],
     queryFn: () =>
       apiFetch<{ node: ShelfNode; children: ShelfNode[] }>(`/public/${token}`, {
@@ -253,10 +301,11 @@ function PublicLinkView({ token }: { token: string }) {
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `${query.data?.node.name ?? "shelf-download"}.zip`
+      link.download = `${publicLinkData?.node.name ?? "shelf-download"}.zip`
       link.click()
       URL.revokeObjectURL(url)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["public-link", token] }),
   })
 
   return (
@@ -272,7 +321,7 @@ function PublicLinkView({ token }: { token: string }) {
           </div>
         </div>
 
-        {query.error ? (
+        {publicLinkError ? (
           <form
             className="space-y-3"
             onSubmit={(event) => {
@@ -287,29 +336,29 @@ function PublicLinkView({ token }: { token: string }) {
               onChange={(event) => setPassword(event.target.value)}
             />
             <Button className="w-full" type="submit">Unlock link</Button>
-            <p className="text-sm text-destructive">{query.error.message}</p>
+            <p className="text-sm text-destructive">{publicLinkError.message}</p>
           </form>
-        ) : query.data ? (
+        ) : publicLinkData ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-md border border-border p-3">
-              {query.data.node.type === "folder" ? (
+              {publicLinkData.node.type === "folder" ? (
                 <FolderIcon className="size-8 text-primary" />
               ) : (
                 <DocumentIcon className="size-8 text-muted-foreground" />
               )}
               <div className="min-w-0">
-                <div className="truncate font-medium">{query.data.node.name}</div>
+                <div className="truncate font-medium">{publicLinkData.node.name}</div>
                 <div className="text-sm text-muted-foreground">
-                  {query.data.node.type}
-                  {query.data.node.type === "file"
-                    ? `, ${formatBytes(query.data.node.sizeBytes)}`
+                  {publicLinkData.node.type}
+                  {publicLinkData.node.type === "file"
+                    ? `, ${formatBytes(publicLinkData.node.sizeBytes)}`
                     : ""}
                 </div>
               </div>
             </div>
-            {query.data.node.type === "folder" && query.data.children.length > 0 ? (
+            {publicLinkData.node.type === "folder" && publicLinkData.children.length > 0 ? (
               <div className="max-h-64 overflow-auto rounded-md border border-border">
-                {query.data.children.map((child) => (
+                {publicLinkData.children.map((child) => (
                   <div
                     key={child.id}
                     className="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0"
@@ -349,31 +398,38 @@ function PublicLinkView({ token }: { token: string }) {
 }
 
 function AuthenticatedApp() {
-  const [section, setSection] = React.useState<Section>("my-shelf")
-  const [parentId, setParentId] = React.useState<string | null>(null)
-  const [selectedNode, setSelectedNode] = React.useState<ShelfNode | null>(null)
-  const [isDragging, setIsDragging] = React.useState(false)
-  const [searchQuery, setSearchQuery] = React.useState("")
+  const [state, dispatch] = React.useReducer(
+    authenticatedAppReducer,
+    authenticatedAppInitialState
+  )
+  const { section, parentId, selectedNode, isDragging, searchQuery } = state
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const folderInputRef = React.useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const { density, setDensity, viewMode, setViewMode } = usePreferences()
   const { tasks, addFiles, addFileGroups, retry, cancel } = useUploadStore()
 
-  const setupStatusQuery = useQuery({
+  const {
+    data: setupStatus,
+    isLoading: setupStatusLoading,
+    refetch: refetchSetupStatus,
+  } = useQuery({
     queryKey: ["setup-status"],
     queryFn: () => apiFetch<{ required: boolean; disabled: boolean }>("/setup/status"),
     retry: false,
   })
 
-  const currentUserQuery = useQuery({
+  const {
+    data: currentUserData,
+    refetch: refetchCurrentUser,
+  } = useQuery({
     queryKey: ["current-user"],
     queryFn: () => apiFetch<CurrentUser>("/auth/current-user"),
-    enabled: setupStatusQuery.data?.required === false,
+    enabled: setupStatus?.required === false,
     retry: false,
   })
 
-  const nodesQuery = useQuery({
+  const { data: nodesData } = useQuery({
     queryKey: ["nodes", parentId],
     queryFn: () =>
       apiFetch<{ nodes: ShelfNode[] }>(
@@ -383,13 +439,13 @@ function AuthenticatedApp() {
     retry: false,
   })
 
-  const searchQueryResult = useQuery({
+  const { data: searchData } = useQuery({
     queryKey: ["nodes-search", searchQuery],
     queryFn: () =>
       apiFetch<{ nodes: ShelfNode[] }>(
         `/nodes/search?q=${encodeURIComponent(searchQuery)}`
       ),
-    enabled: searchQuery.trim().length > 0 && Boolean(currentUserQuery.data),
+    enabled: searchQuery.trim().length > 0 && Boolean(currentUserData),
     retry: false,
   })
 
@@ -414,7 +470,7 @@ function AuthenticatedApp() {
     },
   })
 
-  const nodes = nodesQuery.data?.nodes ?? []
+  const nodes = nodesData?.nodes ?? []
   const uploadProgress =
     tasks.length === 0
       ? 0
@@ -443,15 +499,15 @@ function AuthenticatedApp() {
     async (files: File[]) => {
       const folderIds = new Map<string, string | null>([["", parentId]])
       const filesByFolderId = new Map<string | null, File[]>()
-      const relativePaths = files.map(
-        (file) => (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
-      )
-      const topLevelFolders = new Set(
-        relativePaths
-          .map((path) => path.split("/").filter(Boolean))
-          .filter((parts) => parts.length > 1)
-          .map((parts) => parts[0])
-      )
+      const topLevelFolders = new Set<string>()
+      for (const file of files) {
+        const relativePath =
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+        const pathParts = relativePath.split("/").filter(Boolean)
+        if (pathParts.length > 1 && pathParts[0]) {
+          topLevelFolders.add(pathParts[0])
+        }
+      }
       const toastLabel =
         topLevelFolders.size === 1
           ? (Array.from(topLevelFolders)[0] ?? "Folder")
@@ -499,29 +555,107 @@ function AuthenticatedApp() {
     [addFileGroups, parentId, queryClient]
   )
 
-  if (setupStatusQuery.isLoading) {
+  if (setupStatusLoading) {
     return <FullScreenMessage title="Shelf" message="Checking setup status" />
   }
 
-  if (setupStatusQuery.data?.required) {
-    return <FirstRunSetup onComplete={() => void setupStatusQuery.refetch()} />
+  if (setupStatus?.required) {
+    return <FirstRunSetup onComplete={() => void refetchSetupStatus()} />
   }
 
-  if (!currentUserQuery.data) {
-    return <AuthScreen onComplete={() => void currentUserQuery.refetch()} />
+  if (!currentUserData) {
+    return <AuthScreen onComplete={() => void refetchCurrentUser()} />
   }
 
+  return (
+    <AuthenticatedWorkspace
+      addFiles={addFiles}
+      cancel={cancel}
+      createFolder={(values) => createFolderMutation.mutate(values)}
+      currentUser={currentUserData.user}
+      density={density}
+      dispatch={dispatch}
+      fileInputRef={fileInputRef}
+      folderForm={folderForm}
+      folderInputRef={folderInputRef}
+      isDragging={isDragging}
+      nodes={nodes}
+      parentId={parentId}
+      retry={retry}
+      searchData={searchData}
+      searchQuery={searchQuery}
+      section={section}
+      selectedNode={selectedNode}
+      setDensity={setDensity}
+      setViewMode={setViewMode}
+      tasks={tasks}
+      uploadFolderFiles={uploadFolderFiles}
+      uploadProgress={uploadProgress}
+      viewMode={viewMode}
+    />
+  )
+}
+
+function AuthenticatedWorkspace({
+  addFiles,
+  cancel,
+  createFolder,
+  currentUser,
+  density,
+  dispatch,
+  fileInputRef,
+  folderForm,
+  folderInputRef,
+  isDragging,
+  nodes,
+  parentId,
+  retry,
+  searchData,
+  searchQuery,
+  section,
+  selectedNode,
+  setDensity,
+  setViewMode,
+  tasks,
+  uploadFolderFiles,
+  uploadProgress,
+  viewMode,
+}: {
+  addFiles: ReturnType<typeof useUploadStore.getState>["addFiles"]
+  cancel: ReturnType<typeof useUploadStore.getState>["cancel"]
+  createFolder: (values: FolderForm) => void
+  currentUser: CurrentUser["user"]
+  density: "comfortable" | "compact"
+  dispatch: React.Dispatch<AuthenticatedAppAction>
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+  folderForm: ReturnType<typeof useForm<FolderForm>>
+  folderInputRef: React.RefObject<HTMLInputElement | null>
+  isDragging: boolean
+  nodes: ShelfNode[]
+  parentId: string | null
+  retry: ReturnType<typeof useUploadStore.getState>["retry"]
+  searchData?: { nodes: ShelfNode[] }
+  searchQuery: string
+  section: Section
+  selectedNode: ShelfNode | null
+  setDensity: (density: "comfortable" | "compact") => void
+  setViewMode: (viewMode: "table" | "grid") => void
+  tasks: ReturnType<typeof useUploadStore.getState>["tasks"]
+  uploadFolderFiles: (files: File[]) => Promise<void>
+  uploadProgress: number
+  viewMode: "table" | "grid"
+}) {
   return (
     <div
       className="min-h-svh bg-background text-foreground"
       onDragOver={(event) => {
         event.preventDefault()
-        setIsDragging(true)
+        dispatch({ type: "set-dragging", isDragging: true })
       }}
-      onDragLeave={() => setIsDragging(false)}
+      onDragLeave={() => dispatch({ type: "set-dragging", isDragging: false })}
       onDrop={(event) => {
         event.preventDefault()
-        setIsDragging(false)
+        dispatch({ type: "set-dragging", isDragging: false })
         void extractDroppedFiles(event.dataTransfer).then((files) =>
           uploadFolderFiles(files.length > 0 ? files : Array.from(event.dataTransfer.files))
         )
@@ -551,7 +685,7 @@ function AuthenticatedApp() {
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
-                  onClick={() => setSection(item.id)}
+                  onClick={() => dispatch({ type: "set-section", section: item.id })}
                   type="button"
                 >
                   <Icon className="size-4" />
@@ -564,15 +698,23 @@ function AuthenticatedApp() {
 
         <main className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-            <Button variant="ghost" size="icon-sm" className="lg:hidden">
+            <Button
+              aria-label="Open navigation"
+              variant="ghost"
+              size="icon-sm"
+              className="lg:hidden"
+            >
               <Bars3BottomLeftIcon className="size-5" />
             </Button>
 
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 py-2">
               <MagnifyingGlassIcon className="size-4 text-muted-foreground" />
               <input
+                aria-label="Search files, folders, shares"
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) =>
+                  dispatch({ type: "set-search", searchQuery: event.target.value })
+                }
                 className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
                 placeholder="Search files, folders, shares"
                 type="search"
@@ -591,6 +733,7 @@ function AuthenticatedApp() {
             <Button
               variant="outline"
               size="icon-sm"
+              aria-label="Toggle view"
               onClick={() => setViewMode(viewMode === "table" ? "grid" : "table")}
               title="Toggle view"
             >
@@ -607,36 +750,35 @@ function AuthenticatedApp() {
               {searchQuery.trim().length > 0 ? (
                 <NodeListPanel
                   emptyLabel="No search results"
-                  nodes={searchQueryResult.data?.nodes ?? []}
-                  onOpenFolder={setParentId}
-                  onSelectNode={setSelectedNode}
+                  nodes={searchData?.nodes ?? []}
+                  onOpenFolder={(id) => dispatch({ type: "open-folder", parentId: id })}
+                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
                   selectedNode={selectedNode}
                   title="Search results"
                 />
               ) : section === "my-shelf" ? (
                 <FileBrowser
-                  createFolder={(values) => createFolderMutation.mutate(values)}
+                  createFolder={createFolder}
                   density={density}
                   fileInputRef={fileInputRef}
                   folderForm={folderForm}
                   nodes={nodes}
-                  onOpenFolder={setParentId}
+                  onOpenFolder={(id) => dispatch({ type: "open-folder", parentId: id })}
                   onPickFolder={() => folderInputRef.current?.click()}
                   onPickFiles={() => fileInputRef.current?.click()}
-                  onSelectNode={setSelectedNode}
+                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
                   parentId={parentId}
                   selectedNode={selectedNode}
                   viewMode={viewMode}
                 />
               ) : (
                 <SectionContent
-                  currentUser={currentUserQuery.data.user}
+                  currentUser={currentUser}
                   section={section}
                   onOpenFolder={(id) => {
-                    setParentId(id)
-                    setSection("my-shelf")
+                    dispatch({ type: "open-my-shelf-folder", parentId: id })
                   }}
-                  onSelectNode={setSelectedNode}
+                  onSelectNode={(node) => dispatch({ type: "select-node", node })}
                   selectedNode={selectedNode}
                 />
               )}
@@ -656,6 +798,7 @@ function AuthenticatedApp() {
       </div>
 
       <input
+        aria-label="Upload files"
         ref={fileInputRef}
         className="hidden"
         multiple
@@ -667,6 +810,7 @@ function AuthenticatedApp() {
       />
 
       <input
+        aria-label="Upload folder"
         ref={folderInputRef}
         className="hidden"
         multiple
@@ -889,6 +1033,7 @@ function FullScreenMessage({ title, message }: { title: string; message: string 
 }
 
 function AuthScreen({ onComplete }: { onComplete: () => void }) {
+  const queryClient = useQueryClient()
   const [mode, setMode] = React.useState<"login" | "signup">("login")
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -900,12 +1045,18 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
   })
   const loginMutation = useMutation({
     mutationFn: (values: LoginForm) => authFetch("/sign-in/email", values),
-    onSuccess: onComplete,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["current-user"] })
+      onComplete()
+    },
   })
   const signupMutation = useMutation({
     mutationFn: (values: SignupForm) =>
       authFetch("/sign-up/email", { ...values, mutationId: crypto.randomUUID() }),
-    onSuccess: onComplete,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["current-user"] })
+      onComplete()
+    },
   })
 
   return (
@@ -966,6 +1117,7 @@ function AuthScreen({ onComplete }: { onComplete: () => void }) {
 }
 
 function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
+  const queryClient = useQueryClient()
   const [verifiedStorageSignature, setVerifiedStorageSignature] = React.useState<string | null>(null)
   const form = useForm<SetupFormInput, unknown, SetupForm>({
     resolver: zodResolver(setupFormSchema),
@@ -1027,7 +1179,11 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
           smtpEnabled: values.smtpEnabled,
         }),
       }),
-    onSuccess: onComplete,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["setup-status"] })
+      await queryClient.invalidateQueries({ queryKey: ["current-user"] })
+      onComplete()
+    },
   })
   const testS3Mutation = useMutation({
     mutationFn: (values: SetupForm) =>
@@ -1046,6 +1202,7 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
     onSuccess: (_, values) => {
       setVerifiedStorageSignature(storageSignature(values))
       toast.success("S3 connection verified")
+      void queryClient.invalidateQueries({ queryKey: ["setup-status"] })
     },
   })
   const submitSetup = (values: SetupForm) => {
@@ -1105,6 +1262,9 @@ function FirstRunSetup({ onComplete }: { onComplete: () => void }) {
           {testS3Mutation.error ? (
             <p className="text-sm text-destructive">{testS3Mutation.error.message}</p>
           ) : null}
+          {verifiedStorageSignature ? (
+            <p className="text-sm text-muted-foreground">S3 connection verified.</p>
+          ) : null}
         </Panel>
         <Panel title="Limits and providers">
           <TextInput label="Default quota GB" type="number" {...form.register("defaultUserQuotaGb")} />
@@ -1148,6 +1308,18 @@ function storageSettingsSignature(values: AdminStorageForm) {
   })
 }
 
+function storagePatch(values: AdminStorageForm) {
+  return {
+    endpoint: values.endpoint,
+    region: values.region,
+    bucket: values.bucket,
+    ...(values.accessKeyId ? { accessKeyId: values.accessKeyId } : {}),
+    ...(values.secretAccessKey ? { secretAccessKey: values.secretAccessKey } : {}),
+    forcePathStyle: values.forcePathStyle,
+    publicBaseUrl: values.publicBaseUrl,
+  }
+}
+
 function smtpSettingsSignature(values: AdminSmtpForm) {
   return JSON.stringify({
     host: values.host,
@@ -1156,6 +1328,104 @@ function smtpSettingsSignature(values: AdminSmtpForm) {
     user: values.user,
     password: values.password,
     from: values.from,
+  })
+}
+
+function smtpPatch(values: AdminSmtpForm) {
+  return {
+    host: values.host,
+    port: Number(values.port),
+    secure: values.secure,
+    user: values.user || null,
+    ...(values.password ? { password: values.password } : {}),
+    from: values.from,
+  }
+}
+
+function resetAdminForms(
+  settings: Record<string, unknown> | undefined,
+  settingsForm: ReturnType<typeof useForm<AdminSettingsForm>>,
+  storageForm: ReturnType<typeof useForm<AdminStorageForm>>,
+  smtpForm: ReturnType<typeof useForm<AdminSmtpForm>>
+) {
+  if (!settings) return
+  settingsForm.reset({
+    registrationMode:
+      settings["registration.mode"] === "open" ||
+      settings["registration.mode"] === "disabled"
+        ? settings["registration.mode"]
+        : "invite_only",
+    defaultRole: settings["registration.defaultRole"] === "admin" ? "admin" : "user",
+    defaultUserQuotaGb:
+      typeof settings["storage.defaultUserQuotaBytes"] === "number"
+        ? settings["storage.defaultUserQuotaBytes"] / 1024 ** 3
+        : 10,
+    globalQuotaGb:
+      typeof settings["storage.globalQuotaBytes"] === "number"
+        ? settings["storage.globalQuotaBytes"] / 1024 ** 3
+        : "",
+    publicLinksEnabled: settings["sharing.publicLinksEnabled"] !== false,
+    folderSharingEnabled: settings["sharing.folderSharingEnabled"] !== false,
+    defaultPublicLinkExpirationDays:
+      typeof settings["sharing.defaultPublicLinkExpirationDays"] === "number"
+        ? settings["sharing.defaultPublicLinkExpirationDays"]
+        : 30,
+    maxPublicLinkExpirationDays:
+      typeof settings["sharing.maxPublicLinkExpirationDays"] === "number"
+        ? settings["sharing.maxPublicLinkExpirationDays"]
+        : 365,
+    maxUploadMb:
+      typeof settings["storage.maxFileSizeBytes"] === "number"
+        ? settings["storage.maxFileSizeBytes"] / 1024 ** 2
+        : 5120,
+    emailVerificationRequired: settings["security.emailVerificationRequired"] === true,
+    passwordMinLength:
+      typeof settings["security.passwordMinLength"] === "number"
+        ? settings["security.passwordMinLength"]
+        : 10,
+    sessionLifetimeDays:
+      typeof settings["security.sessionLifetimeDays"] === "number"
+        ? settings["security.sessionLifetimeDays"]
+        : 30,
+    trashRetentionDays:
+      typeof settings["maintenance.trashRetentionDays"] === "number"
+        ? settings["maintenance.trashRetentionDays"]
+        : 30,
+    pendingUploadExpirationMinutes:
+      typeof settings["maintenance.pendingUploadExpirationMinutes"] === "number"
+        ? settings["maintenance.pendingUploadExpirationMinutes"]
+        : 15,
+    thumbnailsEnabled: settings["maintenance.thumbnailsEnabled"] !== false,
+    githubEnabled: settings["oauth.githubEnabled"] === true,
+    googleEnabled: settings["oauth.googleEnabled"] === true,
+    smtpEnabled: settings["smtp.enabled"] === true,
+  })
+  storageForm.reset({
+    endpoint:
+      typeof settings["storage.endpoint"] === "string"
+        ? settings["storage.endpoint"]
+        : "",
+    region:
+      typeof settings["storage.region"] === "string"
+        ? settings["storage.region"]
+        : "auto",
+    bucket:
+      typeof settings["storage.bucket"] === "string" ? settings["storage.bucket"] : "",
+    accessKeyId: "",
+    secretAccessKey: "",
+    forcePathStyle: settings["storage.forcePathStyle"] === true,
+    publicBaseUrl:
+      typeof settings["storage.publicBaseUrl"] === "string"
+        ? settings["storage.publicBaseUrl"]
+        : "",
+  })
+  smtpForm.reset({
+    host: typeof settings["smtp.host"] === "string" ? settings["smtp.host"] : "",
+    port: typeof settings["smtp.port"] === "number" ? settings["smtp.port"] : 587,
+    secure: settings["smtp.secure"] === true,
+    user: typeof settings["smtp.user"] === "string" ? settings["smtp.user"] : "",
+    password: "",
+    from: typeof settings["smtp.from"] === "string" ? settings["smtp.from"] : "",
   })
 }
 
@@ -1191,14 +1461,14 @@ function SharedPanel(props: {
   onSelectNode: (node: ShelfNode) => void
   selectedNode: ShelfNode | null
 }) {
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["shared-with-me"],
     queryFn: () => apiFetch<{ items: Array<{ node: ShelfNode; permission: string }> }>("/shares/shared-with-me"),
   })
   return (
     <NodeListPanel
       emptyLabel="Nothing has been shared with you"
-      nodes={query.data?.items.map((item) => item.node) ?? []}
+      nodes={data?.items.map((item) => item.node) ?? []}
       title="Shared with me"
       {...props}
     />
@@ -1210,14 +1480,14 @@ function RecentPanel(props: {
   onSelectNode: (node: ShelfNode) => void
   selectedNode: ShelfNode | null
 }) {
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["recent"],
     queryFn: () => apiFetch<{ nodes: ShelfNode[] }>("/nodes/recent"),
   })
   return (
     <NodeListPanel
       emptyLabel="No recent files"
-      nodes={query.data?.nodes ?? []}
+      nodes={data?.nodes ?? []}
       title="Recent"
       {...props}
     />
@@ -1230,7 +1500,7 @@ function TrashPanel(props: {
   selectedNode: ShelfNode | null
 }) {
   const queryClient = useQueryClient()
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["trash"],
     queryFn: () => apiFetch<{ nodes: ShelfNode[] }>("/trash"),
   })
@@ -1260,12 +1530,12 @@ function TrashPanel(props: {
     <div>
       <NodeListPanel
         emptyLabel="Trash is empty"
-        nodes={query.data?.nodes ?? []}
+        nodes={data?.nodes ?? []}
         title="Trash"
         {...props}
       />
       <div className="mt-3 flex flex-wrap gap-2">
-        {(query.data?.nodes ?? []).slice(0, 5).map((node) => (
+        {(data?.nodes ?? []).slice(0, 5).map((node) => (
           <React.Fragment key={node.id}>
             <Button
               variant="outline"
@@ -1292,7 +1562,7 @@ function TrashPanel(props: {
 
 function PublicLinksPanel() {
   const queryClient = useQueryClient()
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["public-links"],
     queryFn: () => apiFetch<{ publicLinks: PublicLinkRow[] }>("/public-links"),
   })
@@ -1315,7 +1585,7 @@ function PublicLinksPanel() {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["public-links"] }),
   })
-  const rows = query.data?.publicLinks ?? []
+  const rows = data?.publicLinks ?? []
   return (
     <Panel title="Public links">
       {rows.length === 0 ? (
@@ -1336,6 +1606,7 @@ function PublicLinksPanel() {
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button
+                  aria-label="Copy link ID"
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => {
@@ -1368,6 +1639,7 @@ function PublicLinksPanel() {
                   </Button>
                 )}
                 <Button
+                  aria-label="Delete public link"
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => deleteMutation.mutate(row.id)}
@@ -1385,27 +1657,31 @@ function PublicLinksPanel() {
 }
 
 function AdminPanel() {
+  return useAdminPanel()
+}
+
+function useAdminPanel() {
   const queryClient = useQueryClient()
-  const [verifiedStorageSignature, setVerifiedStorageSignature] = React.useState<string | null>(null)
-  const [verifiedSmtpSignature, setVerifiedSmtpSignature] = React.useState<string | null>(null)
+  const verifiedStorageSignatureRef = React.useRef<string | null>(null)
+  const verifiedSmtpSignatureRef = React.useRef<string | null>(null)
   const [userDialog, setUserDialog] = React.useState<
     | { type: "quota"; user: AdminUserRow; value: string }
     | { type: "username"; user: AdminUserRow; value: string }
     | null
   >(null)
-  const usersQuery = useQuery({
+  const { data: usersData } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => apiFetch<{ users: AdminUserRow[] }>("/admin/users"),
   })
-  const invitesQuery = useQuery({
+  const { data: invitesData } = useQuery({
     queryKey: ["admin-invites"],
     queryFn: () => apiFetch<{ invites: InviteRow[] }>("/admin/invites"),
   })
-  const settingsQuery = useQuery({
+  const { data: settingsData } = useQuery({
     queryKey: ["admin-settings"],
     queryFn: () => apiFetch<{ settings: Record<string, unknown> }>("/settings"),
   })
-  const diagnosticsQuery = useQuery({
+  const { data: diagnosticsData } = useQuery({
     queryKey: ["admin-diagnostics"],
     queryFn: () => apiFetch<Record<string, unknown>>("/admin/diagnostics"),
   })
@@ -1457,89 +1733,8 @@ function AdminPanel() {
   })
 
   React.useEffect(() => {
-    const settings = settingsQuery.data?.settings
-    if (!settings) return
-    settingsForm.reset({
-      registrationMode:
-        settings["registration.mode"] === "open" ||
-        settings["registration.mode"] === "disabled"
-          ? settings["registration.mode"]
-          : "invite_only",
-      defaultRole: settings["registration.defaultRole"] === "admin" ? "admin" : "user",
-      defaultUserQuotaGb:
-        typeof settings["storage.defaultUserQuotaBytes"] === "number"
-          ? settings["storage.defaultUserQuotaBytes"] / 1024 ** 3
-          : 10,
-      globalQuotaGb:
-        typeof settings["storage.globalQuotaBytes"] === "number"
-          ? settings["storage.globalQuotaBytes"] / 1024 ** 3
-          : "",
-      publicLinksEnabled: settings["sharing.publicLinksEnabled"] !== false,
-      folderSharingEnabled: settings["sharing.folderSharingEnabled"] !== false,
-      defaultPublicLinkExpirationDays:
-        typeof settings["sharing.defaultPublicLinkExpirationDays"] === "number"
-          ? settings["sharing.defaultPublicLinkExpirationDays"]
-          : 30,
-      maxPublicLinkExpirationDays:
-        typeof settings["sharing.maxPublicLinkExpirationDays"] === "number"
-          ? settings["sharing.maxPublicLinkExpirationDays"]
-          : 365,
-      maxUploadMb:
-        typeof settings["storage.maxFileSizeBytes"] === "number"
-          ? settings["storage.maxFileSizeBytes"] / 1024 ** 2
-          : 5120,
-      emailVerificationRequired: settings["security.emailVerificationRequired"] === true,
-      passwordMinLength:
-        typeof settings["security.passwordMinLength"] === "number"
-          ? settings["security.passwordMinLength"]
-          : 10,
-      sessionLifetimeDays:
-        typeof settings["security.sessionLifetimeDays"] === "number"
-          ? settings["security.sessionLifetimeDays"]
-          : 30,
-      trashRetentionDays:
-        typeof settings["maintenance.trashRetentionDays"] === "number"
-          ? settings["maintenance.trashRetentionDays"]
-          : 30,
-      pendingUploadExpirationMinutes:
-        typeof settings["maintenance.pendingUploadExpirationMinutes"] === "number"
-          ? settings["maintenance.pendingUploadExpirationMinutes"]
-          : 15,
-      thumbnailsEnabled: settings["maintenance.thumbnailsEnabled"] !== false,
-      githubEnabled: settings["oauth.githubEnabled"] === true,
-      googleEnabled: settings["oauth.googleEnabled"] === true,
-      smtpEnabled: settings["smtp.enabled"] === true,
-    })
-    storageForm.reset({
-      endpoint:
-        typeof settings["storage.endpoint"] === "string"
-          ? settings["storage.endpoint"]
-          : "",
-      region:
-        typeof settings["storage.region"] === "string"
-          ? settings["storage.region"]
-          : "auto",
-      bucket:
-        typeof settings["storage.bucket"] === "string"
-          ? settings["storage.bucket"]
-          : "",
-      accessKeyId: "",
-      secretAccessKey: "",
-      forcePathStyle: settings["storage.forcePathStyle"] === true,
-      publicBaseUrl:
-        typeof settings["storage.publicBaseUrl"] === "string"
-          ? settings["storage.publicBaseUrl"]
-          : "",
-    })
-    smtpForm.reset({
-      host: typeof settings["smtp.host"] === "string" ? settings["smtp.host"] : "",
-      port: typeof settings["smtp.port"] === "number" ? settings["smtp.port"] : 587,
-      secure: settings["smtp.secure"] === true,
-      user: typeof settings["smtp.user"] === "string" ? settings["smtp.user"] : "",
-      password: "",
-      from: typeof settings["smtp.from"] === "string" ? settings["smtp.from"] : "",
-    })
-  }, [settingsForm, settingsQuery.data, smtpForm, storageForm])
+    resetAdminForms(settingsData?.settings, settingsForm, storageForm, smtpForm)
+  }, [settingsForm, settingsData, smtpForm, storageForm])
 
   const userActionMutation = useMutation({
     mutationFn: (input: { userId: string; action: "suspend" | "restore" | "promote" | "demote" }) =>
@@ -1642,15 +1837,6 @@ function AdminPanel() {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-settings"] }),
   })
-  const storagePatch = (values: AdminStorageForm) => ({
-    endpoint: values.endpoint,
-    region: values.region,
-    bucket: values.bucket,
-    ...(values.accessKeyId ? { accessKeyId: values.accessKeyId } : {}),
-    ...(values.secretAccessKey ? { secretAccessKey: values.secretAccessKey } : {}),
-    forcePathStyle: values.forcePathStyle,
-    publicBaseUrl: values.publicBaseUrl,
-  })
   const testStorageMutation = useMutation({
     mutationFn: (values: AdminStorageForm) =>
       apiFetch<{ connected: boolean }>("/settings/test-s3", {
@@ -1658,13 +1844,14 @@ function AdminPanel() {
         body: JSON.stringify({ settings: storagePatch(values) }),
       }),
     onSuccess: (_, values) => {
-      setVerifiedStorageSignature(storageSettingsSignature(values))
+      verifiedStorageSignatureRef.current = storageSettingsSignature(values)
       toast.success("S3 connection verified")
+      void queryClient.invalidateQueries({ queryKey: ["admin-diagnostics"] })
     },
   })
   const storageMutation = useMutation({
     mutationFn: (values: AdminStorageForm) => {
-      if (verifiedStorageSignature !== storageSettingsSignature(values)) {
+      if (verifiedStorageSignatureRef.current !== storageSettingsSignature(values)) {
         throw new Error("Test the current S3 settings before saving")
       }
       return apiFetch("/settings", {
@@ -1696,14 +1883,6 @@ function AdminPanel() {
       await queryClient.invalidateQueries({ queryKey: ["admin-settings"] })
     },
   })
-  const smtpPatch = (values: AdminSmtpForm) => ({
-    host: values.host,
-    port: Number(values.port),
-    secure: values.secure,
-    user: values.user || null,
-    ...(values.password ? { password: values.password } : {}),
-    from: values.from,
-  })
   const testSmtpMutation = useMutation({
     mutationFn: (values: AdminSmtpForm) =>
       apiFetch<{ connected: boolean }>("/settings/test-smtp", {
@@ -1711,13 +1890,14 @@ function AdminPanel() {
         body: JSON.stringify({ settings: smtpPatch(values) }),
       }),
     onSuccess: (_, values) => {
-      setVerifiedSmtpSignature(smtpSettingsSignature(values))
+      verifiedSmtpSignatureRef.current = smtpSettingsSignature(values)
       toast.success("SMTP connection verified")
+      void queryClient.invalidateQueries({ queryKey: ["admin-diagnostics"] })
     },
   })
   const smtpMutation = useMutation({
     mutationFn: (values: AdminSmtpForm) => {
-      if (verifiedSmtpSignature !== smtpSettingsSignature(values)) {
+      if (verifiedSmtpSignatureRef.current !== smtpSettingsSignature(values)) {
         throw new Error("Test the current SMTP settings before saving")
       }
       return apiFetch("/settings", {
@@ -1821,7 +2001,7 @@ function AdminPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(usersQuery.data?.users ?? []).map((row) => (
+              {(usersData?.users ?? []).map((row) => (
                 <TableRow key={row.id} className="border-t border-border">
                   <TableCell className="px-3 py-2">
                     <div className="font-medium">{row.name}</div>
@@ -2026,7 +2206,7 @@ function AdminPanel() {
             </Button>
           </form>
           <div className="mt-4 divide-y divide-border">
-            {(invitesQuery.data?.invites ?? []).slice(0, 8).map((invite) => (
+            {(invitesData?.invites ?? []).slice(0, 8).map((invite) => (
               <div key={invite.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div className="min-w-0">
                   <div className="truncate font-medium">{invite.email}</div>
@@ -2133,7 +2313,7 @@ function AdminPanel() {
       </div>
       <Panel title="Diagnostics">
         <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-          {JSON.stringify(diagnosticsQuery.data ?? {}, null, 2)}
+          {JSON.stringify(diagnosticsData ?? {}, null, 2)}
         </pre>
       </Panel>
       </div>
@@ -2218,8 +2398,10 @@ function ProfilePanel({ user }: { user: CurrentUser["user"] }) {
         <Button variant="outline" type="submit">Change username</Button>
       </form>
       <div className="mt-6 grid max-w-md gap-3">
-        <Label>Avatar</Label>
+        <Label htmlFor="profile-avatar-input">Avatar</Label>
         <input
+          aria-label="Upload avatar"
+          id="profile-avatar-input"
           ref={avatarInputRef}
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
@@ -2303,6 +2485,7 @@ function Panel({ children, title }: { children: React.ReactNode; title: string }
 }
 
 function TextInput({
+  id,
   label,
   ref,
   ...props
@@ -2310,10 +2493,14 @@ function TextInput({
   label: string
   ref?: React.Ref<HTMLInputElement>
 }) {
+  const generatedId = React.useId()
+  const inputId = id ?? generatedId
+
   return (
     <div className="grid gap-1.5">
-      <Label>{label}</Label>
+      <Label htmlFor={inputId}>{label}</Label>
       <Input
+        id={inputId}
         ref={ref}
         {...props}
       />
@@ -2338,6 +2525,10 @@ function CheckboxInput({
 }
 
 function DetailsPanel({ node }: { node: ShelfNode | null }) {
+  return useDetailsPanel(node)
+}
+
+function useDetailsPanel(node: ShelfNode | null) {
   const queryClient = useQueryClient()
   const [nodeDialog, setNodeDialog] = React.useState<
     | { type: "rename"; value: string }
@@ -2345,13 +2536,13 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
     | { type: "copy"; value: string }
     | null
   >(null)
-  const sharesQuery = useQuery({
+  const { data: sharesData } = useQuery({
     queryKey: ["node-shares", node?.id],
     queryFn: () => apiFetch<{ shares: NodeShareRow[] }>(`/shares/${node?.id}`),
     enabled: Boolean(node),
     retry: false,
   })
-  const textPreviewQuery = useQuery({
+  const { data: textPreviewData } = useQuery({
     queryKey: ["text-preview", node?.id, node?.revision],
     queryFn: () => apiFetch<{ text: string }>(`/nodes/${node?.id}/preview/text`),
     enabled:
@@ -2398,6 +2589,7 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
       ),
     onSuccess: (result) => {
       toast.success(`Found ${result.user.name} (@${result.user.username})`)
+      void queryClient.invalidateQueries({ queryKey: ["node-shares", node?.id] })
     },
   })
   const updateShareMutation = useMutation({
@@ -2522,6 +2714,7 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
     },
     onSuccess: (result) => {
       window.location.assign(result.url)
+      void queryClient.invalidateQueries({ queryKey: ["recent"] })
     },
   })
   const zipDownloadMutation = useMutation({
@@ -2530,6 +2723,7 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
       window.location.assign(`/api/v1/nodes/${node.id}/zip`)
       return Promise.resolve()
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["recent"] }),
   })
 
   return (
@@ -2596,7 +2790,7 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
       <div className="border-b border-border p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-heading text-sm font-semibold">Details</h2>
-        <Button variant="ghost" size="icon-xs">
+        <Button aria-label="Close details" variant="ghost" size="icon-xs">
           <XMarkIcon className="size-4" />
         </Button>
       </div>
@@ -2625,9 +2819,9 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
             </div>
           </dl>
           {node.type === "file" ? (
-            textPreviewQuery.data ? (
+            textPreviewData ? (
               <pre className="max-h-48 overflow-auto rounded-md border border-border bg-muted p-3 text-xs whitespace-pre-wrap">
-                {textPreviewQuery.data.text}
+                {textPreviewData.text}
               </pre>
             ) : node.mimeType?.startsWith("image/") ? (
               <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
@@ -2735,9 +2929,9 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
             {shareMutation.error ? (
               <p className="text-xs text-destructive">{shareMutation.error.message}</p>
             ) : null}
-            {(sharesQuery.data?.shares ?? []).length > 0 ? (
+            {(sharesData?.shares ?? []).length > 0 ? (
               <div className="divide-y divide-border pt-2">
-                {(sharesQuery.data?.shares ?? []).map((share) => (
+                {(sharesData?.shares ?? []).map((share) => (
                   <div
                     key={share.userId}
                     className="flex items-center justify-between gap-2 py-2"
@@ -2761,6 +2955,7 @@ function DetailsPanel({ node }: { node: ShelfNode | null }) {
                         <option value="editor">Editor</option>
                       </select>
                       <Button
+                        aria-label="Revoke share"
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => revokeShareMutation.mutate(share.userId)}
@@ -2846,12 +3041,22 @@ function UploadDrawer({
                 <div className="min-w-0 truncate text-sm font-medium">{task.file.name}</div>
                 <div className="flex gap-1">
                   {task.status === "failed" ? (
-                    <Button variant="ghost" size="icon-xs" onClick={() => retry(task.id)}>
+                    <Button
+                      aria-label={`Retry ${task.file.name}`}
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => retry(task.id)}
+                    >
                       <ArrowPathIcon className="size-3" />
                     </Button>
                   ) : null}
                   {task.status === "uploading" || task.status === "queued" ? (
-                    <Button variant="ghost" size="icon-xs" onClick={() => cancel(task.id)}>
+                    <Button
+                      aria-label={`Cancel ${task.file.name}`}
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => cancel(task.id)}
+                    >
                       <XMarkIcon className="size-3" />
                     </Button>
                   ) : null}

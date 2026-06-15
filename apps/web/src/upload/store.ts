@@ -337,12 +337,14 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         }))
       })
 
+      const fileName = task.file.name
+
       if (!task.batchId) {
         toast.promise(promise, {
-          loading: `Uploading ${task.file.name}`,
-          success: `${task.file.name} uploaded`,
+          loading: `Uploading ${fileName}`,
+          success: `${fileName} uploaded`,
           error: (error) =>
-            error instanceof Error ? error.message : `Failed to upload ${task.file.name}`,
+            error instanceof Error ? error.message : `Failed to upload ${fileName}`,
         })
       }
 

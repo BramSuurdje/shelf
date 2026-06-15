@@ -9,6 +9,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "start": "bun server.ts",
     "preview": "vite preview"
   },
   "dependencies": {
