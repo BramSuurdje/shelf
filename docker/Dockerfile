@@ -6,7 +6,7 @@ COPY packages ./packages
 RUN bun install --frozen-lockfile
 
 FROM deps AS web-build
-RUN bun --filter web build
+RUN bun --filter @shelf/web build
 
 FROM oven/bun:1.3.13 AS api
 WORKDIR /app

@@ -23,14 +23,14 @@ import {
 } from "@heroicons/react/24/outline"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
+import { Badge } from "@shelf/ui/components/badge"
+import { Button } from "@shelf/ui/components/button"
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@workspace/ui/components/card"
+} from "@shelf/ui/components/card"
 import {
   Dialog,
   DialogContent,
@@ -38,10 +38,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@workspace/ui/components/dialog"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
-import { Progress } from "@workspace/ui/components/progress"
+} from "@shelf/ui/components/dialog"
+import { Input } from "@shelf/ui/components/input"
+import { Label } from "@shelf/ui/components/label"
+import { Progress } from "@shelf/ui/components/progress"
 import {
   Table,
   TableBody,
@@ -49,7 +49,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@workspace/ui/components/table"
+} from "@shelf/ui/components/table"
 import * as React from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"

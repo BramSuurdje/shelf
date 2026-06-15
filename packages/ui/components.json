@@ -11,11 +11,11 @@
   },
   "iconLibrary": "heroicons",
   "aliases": {
-    "components": "@workspace/ui/components",
-    "utils": "@workspace/ui/lib/utils",
-    "hooks": "@workspace/ui/hooks",
-    "lib": "@workspace/ui/lib",
-    "ui": "@workspace/ui/components"
+    "components": "@shelf/ui/components",
+    "utils": "@shelf/ui/lib/utils",
+    "hooks": "@shelf/ui/hooks",
+    "lib": "@shelf/ui/lib",
+    "ui": "@shelf/ui/components"
   },
   "rtl": false,
   "menuColor": "inverted-translucent",
